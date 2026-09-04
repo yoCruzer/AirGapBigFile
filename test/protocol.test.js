@@ -52,6 +52,25 @@ test('rejects inconsistent chunk metadata', () => {
   assert.throws(() => protocol.validateManifest(manifest), /total_size/);
 });
 
+test('rejects zero-byte manifests and zero-size chunks', () => {
+  assert.throws(() => protocol.validateManifest(validManifest({ total_size: 0 })), /total_size.*positive/);
+  const manifest = validManifest();
+  manifest.chunks[1].size = 0;
+  manifest.total_size = protocol.CHUNK_SIZE_5_MIB;
+  assert.throws(() => protocol.validateManifest(manifest), /chunk 1.*invalid size/);
+  assert.throws(() => protocol.chunkCountFor(0, protocol.CHUNK_SIZE_5_MIB), /fileSize.*positive/);
+});
+
+test('matches AirGapFree logical filename safety rules', () => {
+  for (const filename of ['', '.', '..', 'dir/file.bin', 'dir\\file.bin', 'line\nbreak.bin',
+    'nul\0byte.bin', 'delete\u007f.bin', 'control\u0085.bin']) {
+    assert.equal(protocol.isSafeLogicalFilename(filename), false, JSON.stringify(filename));
+    assert.throws(() => protocol.validateManifest(validManifest({ filename })), /filename.*safe/);
+  }
+  assert.equal(protocol.isSafeLogicalFilename('传输文件.bin'), true);
+  assert.equal(protocol.validateManifest(validManifest({ filename: '传输文件.bin' })).filename, '传输文件.bin');
+});
+
 test('selects a compatible profile chunk size', () => {
   assert.equal(protocol.selectProfileChunkSize(120 * protocol.CHUNK_SIZE_5_MIB), protocol.CHUNK_SIZE_5_MIB);
   assert.equal(protocol.selectProfileChunkSize(121 * protocol.CHUNK_SIZE_5_MIB), protocol.CHUNK_SIZE_10_MIB);

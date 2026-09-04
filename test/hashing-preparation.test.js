@@ -98,3 +98,25 @@ test('preparation can be cancelled between ranged reads', async () => {
   );
   assert.equal(reads, 1);
 });
+
+test('preparation rejects an empty file before any ranged read', async () => {
+  let reads = 0;
+  const file = {
+    name: 'empty.bin',
+    size: 0,
+    slice() { reads += 1; throw new Error('must not read'); },
+  };
+  await assert.rejects(preparation.prepareFileByRanges(file, { encodeIdBase: 1 }), /empty file/);
+  assert.equal(reads, 0);
+});
+
+test('preparation rejects an unsafe filename before hashing', async () => {
+  let reads = 0;
+  const file = {
+    name: '../unsafe.bin',
+    size: 1,
+    slice() { reads += 1; throw new Error('must not read'); },
+  };
+  await assert.rejects(preparation.prepareFileByRanges(file, { encodeIdBase: 1 }), /filename.*safe/);
+  assert.equal(reads, 0);
+});

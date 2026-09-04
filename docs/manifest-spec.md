@@ -23,9 +23,11 @@ receive it without a protocol fork.
 
 - `version` is exactly integer `1`.
 - `tool` is exactly `"cimbar-bigfile"`.
-- `filename` is a non-empty UTF-8 string and is not chunk identity.
-- `total_size`, `chunk_size`, and chunk `size` are non-negative safe integers;
-  `chunk_size` is positive.
+- `filename` is a non-empty UTF-8 string and is not chunk identity. To match
+  AirGapFree it cannot be `.`, `..`, contain `/` or `\\`, or contain Unicode
+  control characters.
+- `total_size`, `chunk_size`, and every chunk `size` are positive safe integers.
+  Zero-byte transfers are rejected.
 - `sha256` fields are lowercase 64-character hexadecimal SHA-256 values.
 - `chunk_count` is `chunks.length`, is at least one, and is at most 120.
 - Chunks have consecutive zero-based indexes. Every non-final chunk has exactly

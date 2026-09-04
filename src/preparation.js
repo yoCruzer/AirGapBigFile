@@ -36,6 +36,8 @@
     if (!file || typeof file.slice !== 'function' || !Number.isSafeInteger(file.size) || file.size < 0) {
       throw new TypeError('A File/Blob-like input is required');
     }
+    if (file.size === 0) throw new RangeError('Cannot prepare an empty file');
+    protocol.assertSafeLogicalFilename(file.name);
     if (!sha256 || typeof sha256.create !== 'function') {
       throw new Error('Incremental SHA-256 dependency is unavailable');
     }
@@ -76,7 +78,7 @@
 
     throwIfAborted(config.signal);
     const manifest = protocol.createManifest({
-      filename: file.name || 'unnamed.bin',
+      filename: file.name,
       totalSize: file.size,
       sha256: wholeHasher.hex(),
       chunkSize,

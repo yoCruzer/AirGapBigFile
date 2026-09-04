@@ -22,6 +22,10 @@ The full schema is in `manifest-spec.md`. Chunk count is at most 120. Product
 chunk sizes are binary 5 MiB and 10 MiB. Five MiB is preferred; 10 MiB is chosen
 when necessary to stay within 120 chunks. A larger file is rejected.
 
+Receiver compatibility is enforced during preparation: empty files are rejected,
+and logical filenames cannot be empty, `.`, `..`, contain path separators, or
+contain control characters.
+
 Logical offset zero is the manifest; logical offset `i + 1` is chunk `i`.
 
 ```text

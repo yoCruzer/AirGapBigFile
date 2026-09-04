@@ -12,6 +12,7 @@
   const CHUNK_SIZE_10_MIB = 10 * 1024 * 1024;
   const PROFILE_CHUNK_SIZES = Object.freeze([CHUNK_SIZE_5_MIB, CHUNK_SIZE_10_MIB]);
   const SHA256_RE = /^[0-9a-f]{64}$/;
+  const CONTROL_CHARACTER_RE = /[\u0000-\u001F\u007F-\u009F]/;
 
   function assertSafeNonNegative(value, name) {
     if (!Number.isSafeInteger(value) || value < 0) {
@@ -19,8 +20,31 @@
     }
   }
 
+  function assertSafePositive(value, name) {
+    if (!Number.isSafeInteger(value) || value <= 0) {
+      throw new TypeError(`${name} must be a positive safe integer`);
+    }
+  }
+
+  function isSafeLogicalFilename(filename) {
+    return typeof filename === 'string' &&
+      filename.length > 0 &&
+      filename !== '.' &&
+      filename !== '..' &&
+      !filename.includes('/') &&
+      !filename.includes('\\') &&
+      !CONTROL_CHARACTER_RE.test(filename);
+  }
+
+  function assertSafeLogicalFilename(filename) {
+    if (!isSafeLogicalFilename(filename)) {
+      throw new Error('filename is not safe for the AirGapFree Receiver');
+    }
+    return filename;
+  }
+
   function chunkCountFor(fileSize, chunkSize) {
-    assertSafeNonNegative(fileSize, 'fileSize');
+    assertSafePositive(fileSize, 'fileSize');
     if (!Number.isSafeInteger(chunkSize) || chunkSize <= 0) {
       throw new TypeError('chunkSize must be a positive safe integer');
     }
@@ -28,7 +52,7 @@
   }
 
   function selectProfileChunkSize(fileSize, requestedSize) {
-    assertSafeNonNegative(fileSize, 'fileSize');
+    assertSafePositive(fileSize, 'fileSize');
     if (requestedSize !== undefined && !PROFILE_CHUNK_SIZES.includes(requestedSize)) {
       throw new RangeError('AirGap BigFile v1 supports only 5 MiB or 10 MiB chunks');
     }
@@ -76,10 +100,8 @@
     }
     if (manifest.version !== MANIFEST_VERSION) throw new Error('unsupported manifest version');
     if (manifest.tool !== MANIFEST_TOOL) throw new Error('unsupported manifest tool');
-    if (typeof manifest.filename !== 'string' || manifest.filename.length === 0) {
-      throw new Error('filename must be a non-empty string');
-    }
-    assertSafeNonNegative(manifest.total_size, 'total_size');
+    assertSafeLogicalFilename(manifest.filename);
+    assertSafePositive(manifest.total_size, 'total_size');
     if (!SHA256_RE.test(manifest.sha256)) throw new Error('invalid whole-file SHA-256');
     if (!Number.isSafeInteger(manifest.chunk_size) || manifest.chunk_size <= 0) {
       throw new Error('chunk_size must be a positive safe integer');
@@ -102,7 +124,7 @@
     let sizeSum = 0;
     manifest.chunks.forEach((chunk, index) => {
       if (!chunk || chunk.index !== index) throw new Error(`chunk ${index} index mismatch`);
-      if (!Number.isSafeInteger(chunk.size) || chunk.size < 0 || chunk.size > manifest.chunk_size) {
+      if (!Number.isSafeInteger(chunk.size) || chunk.size <= 0 || chunk.size > manifest.chunk_size) {
         throw new Error(`chunk ${index} has invalid size`);
       }
       if (index < manifest.chunk_count - 1 && chunk.size !== manifest.chunk_size) {
@@ -144,6 +166,8 @@
     CHUNK_SIZE_5_MIB,
     CHUNK_SIZE_10_MIB,
     PROFILE_CHUNK_SIZES,
+    isSafeLogicalFilename,
+    assertSafeLogicalFilename,
     chunkCountFor,
     selectProfileChunkSize,
     randomEncodeIdBase,
