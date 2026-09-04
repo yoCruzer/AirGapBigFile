@@ -2,6 +2,11 @@
 
 These assets are vendored from libcimbar v0.6.4 official GitHub Release. **Original copyright belongs to sz3 and project contributors; this redistribution complies with the upstream license terms (see License section below).**
 
+AirGap BigFile also vendors `js-sha256` 0.11.1 under
+`js-sha256-0.11.1/` for incremental whole-file hashing. It is MIT licensed;
+the source and license are kept together, and the source file SHA-256 is
+`2db6c8e554fbee14672368a0d7551a8ddd841ee96c91526eb7987a0179cfc717`.
+
 ## Source
 
 - Release: https://github.com/sz3/libcimbar/releases/tag/v0.6.4

@@ -24,3 +24,5 @@ licensed under the BSD 3-Clause License in `vendor/LICENSE-wirehair`.
 The incremental browser SHA-256 implementation used by the sender is vendored
 from `js-sha256` version 0.11.1 by Chen, Yi-Cyuan (emn178), under the MIT license.
 Its source and license are kept together under `vendor/js-sha256-0.11.1/`.
+The vendored source SHA-256 is
+`2db6c8e554fbee14672368a0d7551a8ddd841ee96c91526eb7987a0179cfc717`.
