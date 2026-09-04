@@ -5,8 +5,8 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import importlib.util
 import re
+import runpy
 import sys
 from pathlib import Path
 
@@ -22,12 +22,8 @@ def fail(message: str) -> int:
 
 
 def load_builder():
-    spec = importlib.util.spec_from_file_location("airgap_standalone_builder", BUILD_SCRIPT)
-    if spec is None or spec.loader is None:
-        raise RuntimeError("cannot load build script")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    namespace = runpy.run_path(str(BUILD_SCRIPT))
+    return namespace["build_html"]
 
 
 def main() -> int:
@@ -36,7 +32,7 @@ def main() -> int:
 
     data = ARTIFACT.read_bytes()
     try:
-        expected = load_builder().build_html().encode("utf-8")
+        expected = load_builder()().encode("utf-8")
     except (OSError, RuntimeError, ValueError) as error:
         return fail(str(error))
     if data != expected:
