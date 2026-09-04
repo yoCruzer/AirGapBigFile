@@ -180,27 +180,29 @@
         feedEncoder(payload.bytes);
         framesInBurst = 0;
         framesInBurstTarget = A.framesForBurst(payload.bytes.length, transfer.burstFactor);
-        streamReady = true;
-        render();
         return framesInBurstTarget;
       },
     });
   }
 
   async function ensureCurrentUnit() {
-    const result = await unitLifecycle.ensureInitialized();
-    if (!result) streamReady = false;
+    const lifecycle = unitLifecycle;
+    const ownership = await lifecycle.ensureInitialized();
+    if (!lifecycle.isCurrent(ownership)) return false;
+    streamReady = true;
     render();
-    return Boolean(result);
+    return true;
   }
 
   async function advanceCurrentUnit() {
+    const lifecycle = unitLifecycle;
     streamReady = false;
     render();
-    const result = await unitLifecycle.advance();
-    if (!result) streamReady = false;
+    const ownership = await lifecycle.advance();
+    if (!lifecycle.isCurrent(ownership)) return false;
+    streamReady = true;
     render();
-    return Boolean(result);
+    return true;
   }
 
   function clearRenderTimer() {

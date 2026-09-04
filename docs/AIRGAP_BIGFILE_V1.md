@@ -24,7 +24,7 @@ when necessary to stay within 120 chunks. A larger file is rejected.
 
 Receiver compatibility is enforced during preparation: empty files are rejected,
 and logical filenames cannot be empty, `.`, `..`, contain path separators, or
-contain control characters.
+contain Unicode `Cc`/`Cf` control and format characters.
 
 Logical offset zero is the manifest; logical offset `i + 1` is chunk `i`.
 
@@ -90,7 +90,9 @@ unit. A unit already claimed from the scheduler remains owned while its ranged
 chunk load is pending; Resume joins that same initialization promise and cannot
 claim another unit. An initialized libcimbar stream also remains alive and Resume
 continues rendering it without reinitialization. Switching units reinitializes
-the encoder.
+the encoder. Async completions commit readiness/render state only when their
+ownership token is still the lifecycle's current initialized unit; invalidated
+completions have no post-await runtime effects.
 
 ## Burst factor and fountain semantics
 

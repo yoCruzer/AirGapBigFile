@@ -12,7 +12,7 @@
   const CHUNK_SIZE_10_MIB = 10 * 1024 * 1024;
   const PROFILE_CHUNK_SIZES = Object.freeze([CHUNK_SIZE_5_MIB, CHUNK_SIZE_10_MIB]);
   const SHA256_RE = /^[0-9a-f]{64}$/;
-  const CONTROL_CHARACTER_RE = /[\u0000-\u001F\u007F-\u009F]/;
+  const CONTROL_CHARACTER_RE = /[\p{Cc}\p{Cf}]/u;
 
   function assertSafeNonNegative(value, name) {
     if (!Number.isSafeInteger(value) || value < 0) {

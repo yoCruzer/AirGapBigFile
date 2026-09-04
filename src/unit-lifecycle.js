@@ -64,7 +64,11 @@
       });
     }
 
-    return { ensureInitialized, advance, invalidate, snapshot };
+    function isCurrent(ownership) {
+      return ownership !== null && ownership === initialized;
+    }
+
+    return { ensureInitialized, advance, invalidate, isCurrent, snapshot };
   }
 
   return { createAsyncUnitLifecycle };

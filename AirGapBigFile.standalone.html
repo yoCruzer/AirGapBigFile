@@ -783,7 +783,7 @@
   const CHUNK_SIZE_10_MIB = 10 * 1024 * 1024;
   const PROFILE_CHUNK_SIZES = Object.freeze([CHUNK_SIZE_5_MIB, CHUNK_SIZE_10_MIB]);
   const SHA256_RE = /^[0-9a-f]{64}$/;
-  const CONTROL_CHARACTER_RE = /[\u0000-\u001F\u007F-\u009F]/;
+  const CONTROL_CHARACTER_RE = /[\p{Cc}\p{Cf}]/u;
 
   function assertSafeNonNegative(value, name) {
     if (!Number.isSafeInteger(value) || value < 0) {
@@ -1447,7 +1447,11 @@
       });
     }
 
-    return { ensureInitialized, advance, invalidate, snapshot };
+    function isCurrent(ownership) {
+      return ownership !== null && ownership === initialized;
+    }
+
+    return { ensureInitialized, advance, invalidate, isCurrent, snapshot };
   }
 
   return { createAsyncUnitLifecycle };
@@ -1639,27 +1643,29 @@
         feedEncoder(payload.bytes);
         framesInBurst = 0;
         framesInBurstTarget = A.framesForBurst(payload.bytes.length, transfer.burstFactor);
-        streamReady = true;
-        render();
         return framesInBurstTarget;
       },
     });
   }
 
   async function ensureCurrentUnit() {
-    const result = await unitLifecycle.ensureInitialized();
-    if (!result) streamReady = false;
+    const lifecycle = unitLifecycle;
+    const ownership = await lifecycle.ensureInitialized();
+    if (!lifecycle.isCurrent(ownership)) return false;
+    streamReady = true;
     render();
-    return Boolean(result);
+    return true;
   }
 
   async function advanceCurrentUnit() {
+    const lifecycle = unitLifecycle;
     streamReady = false;
     render();
-    const result = await unitLifecycle.advance();
-    if (!result) streamReady = false;
+    const ownership = await lifecycle.advance();
+    if (!lifecycle.isCurrent(ownership)) return false;
+    streamReady = true;
     render();
-    return Boolean(result);
+    return true;
   }
 
   function clearRenderTimer() {

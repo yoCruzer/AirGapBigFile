@@ -63,7 +63,8 @@ test('rejects zero-byte manifests and zero-size chunks', () => {
 
 test('matches AirGapFree logical filename safety rules', () => {
   for (const filename of ['', '.', '..', 'dir/file.bin', 'dir\\file.bin', 'line\nbreak.bin',
-    'nul\0byte.bin', 'delete\u007f.bin', 'control\u0085.bin']) {
+    'nul\0byte.bin', 'delete\u007f.bin', 'control\u0085.bin', 'soft\u00adhyphen.bin',
+    'left\u200emark.bin', 'isolate\u2066control.bin']) {
     assert.equal(protocol.isSafeLogicalFilename(filename), false, JSON.stringify(filename));
     assert.throws(() => protocol.validateManifest(validManifest({ filename })), /filename.*safe/);
   }

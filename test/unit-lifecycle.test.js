@@ -111,3 +111,63 @@ test('invalidating a pending load prevents stale initialization', async () => {
   assert.equal(await pending, null);
   assert.equal(initializeCount, 0);
 });
+
+test('stale mode-change completion cannot clobber the new stream readiness', async () => {
+  const state = readyState();
+  const controller = controllerModule.createTransmissionController(state);
+  controller.start();
+  const oldChunkLoad = deferred();
+  const encoderInitializations = [];
+  let ready = false;
+  let scheduled = false;
+  const lifecycle = lifecycleModule.createAsyncUnitLifecycle({
+    nextUnit: controller.nextUnit,
+    loadUnit(item) {
+      if (item.kind === 'chunk' && item.index === 0) return oldChunkLoad.promise;
+      return Promise.resolve(`${label(item)} bytes`);
+    },
+    initializeUnit(item) {
+      encoderInitializations.push(label(item));
+    },
+  });
+
+  async function ensureCurrent() {
+    const ownership = await lifecycle.ensureInitialized();
+    if (!lifecycle.isCurrent(ownership)) return false;
+    ready = true;
+    scheduled = true;
+    return true;
+  }
+
+  async function advanceCurrent() {
+    ready = false;
+    scheduled = false;
+    const ownership = await lifecycle.advance();
+    if (!lifecycle.isCurrent(ownership)) return false;
+    ready = true;
+    scheduled = true;
+    return true;
+  }
+
+  assert.equal(await ensureCurrent(), true);
+  assert.deepEqual(encoderInitializations, ['M']);
+
+  const staleAdvance = advanceCurrent();
+  assert.equal(label(lifecycle.snapshot().pendingItem), 'C0');
+
+  lifecycle.invalidate();
+  controller.focus(1);
+  assert.equal(await ensureCurrent(), true);
+  assert.deepEqual(encoderInitializations, ['M', 'M']);
+  assert.equal(ready, true);
+  assert.equal(scheduled, true);
+
+  oldChunkLoad.resolve('stale C0 bytes');
+  assert.equal(await staleAdvance, false);
+  assert.deepEqual(encoderInitializations, ['M', 'M']);
+  assert.equal(ready, true);
+  assert.equal(scheduled, true);
+  assert.equal(label(lifecycle.snapshot().initializedItem), 'M');
+  assert.equal(label(controller.snapshot().scheduler.current), 'M');
+  assert.equal(controller.snapshot().scheduler.phase, 'chunk');
+});
