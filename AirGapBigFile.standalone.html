@@ -783,6 +783,7 @@
   const CHUNK_SIZE_10_MIB = 10 * 1024 * 1024;
   const PROFILE_CHUNK_SIZES = Object.freeze([CHUNK_SIZE_5_MIB, CHUNK_SIZE_10_MIB]);
   const SHA256_RE = /^[0-9a-f]{64}$/;
+  const CONTROL_CHARACTER_RE = /[\u0000-\u001F\u007F-\u009F]/;
 
   function assertSafeNonNegative(value, name) {
     if (!Number.isSafeInteger(value) || value < 0) {
@@ -790,8 +791,31 @@
     }
   }
 
+  function assertSafePositive(value, name) {
+    if (!Number.isSafeInteger(value) || value <= 0) {
+      throw new TypeError(`${name} must be a positive safe integer`);
+    }
+  }
+
+  function isSafeLogicalFilename(filename) {
+    return typeof filename === 'string' &&
+      filename.length > 0 &&
+      filename !== '.' &&
+      filename !== '..' &&
+      !filename.includes('/') &&
+      !filename.includes('\\') &&
+      !CONTROL_CHARACTER_RE.test(filename);
+  }
+
+  function assertSafeLogicalFilename(filename) {
+    if (!isSafeLogicalFilename(filename)) {
+      throw new Error('filename is not safe for the AirGapFree Receiver');
+    }
+    return filename;
+  }
+
   function chunkCountFor(fileSize, chunkSize) {
-    assertSafeNonNegative(fileSize, 'fileSize');
+    assertSafePositive(fileSize, 'fileSize');
     if (!Number.isSafeInteger(chunkSize) || chunkSize <= 0) {
       throw new TypeError('chunkSize must be a positive safe integer');
     }
@@ -799,7 +823,7 @@
   }
 
   function selectProfileChunkSize(fileSize, requestedSize) {
-    assertSafeNonNegative(fileSize, 'fileSize');
+    assertSafePositive(fileSize, 'fileSize');
     if (requestedSize !== undefined && !PROFILE_CHUNK_SIZES.includes(requestedSize)) {
       throw new RangeError('AirGap BigFile v1 supports only 5 MiB or 10 MiB chunks');
     }
@@ -847,10 +871,8 @@
     }
     if (manifest.version !== MANIFEST_VERSION) throw new Error('unsupported manifest version');
     if (manifest.tool !== MANIFEST_TOOL) throw new Error('unsupported manifest tool');
-    if (typeof manifest.filename !== 'string' || manifest.filename.length === 0) {
-      throw new Error('filename must be a non-empty string');
-    }
-    assertSafeNonNegative(manifest.total_size, 'total_size');
+    assertSafeLogicalFilename(manifest.filename);
+    assertSafePositive(manifest.total_size, 'total_size');
     if (!SHA256_RE.test(manifest.sha256)) throw new Error('invalid whole-file SHA-256');
     if (!Number.isSafeInteger(manifest.chunk_size) || manifest.chunk_size <= 0) {
       throw new Error('chunk_size must be a positive safe integer');
@@ -873,7 +895,7 @@
     let sizeSum = 0;
     manifest.chunks.forEach((chunk, index) => {
       if (!chunk || chunk.index !== index) throw new Error(`chunk ${index} index mismatch`);
-      if (!Number.isSafeInteger(chunk.size) || chunk.size < 0 || chunk.size > manifest.chunk_size) {
+      if (!Number.isSafeInteger(chunk.size) || chunk.size <= 0 || chunk.size > manifest.chunk_size) {
         throw new Error(`chunk ${index} has invalid size`);
       }
       if (index < manifest.chunk_count - 1 && chunk.size !== manifest.chunk_size) {
@@ -915,6 +937,8 @@
     CHUNK_SIZE_5_MIB,
     CHUNK_SIZE_10_MIB,
     PROFILE_CHUNK_SIZES,
+    isSafeLogicalFilename,
+    assertSafeLogicalFilename,
     chunkCountFor,
     selectProfileChunkSize,
     randomEncodeIdBase,
@@ -1124,6 +1148,8 @@
     if (!file || typeof file.slice !== 'function' || !Number.isSafeInteger(file.size) || file.size < 0) {
       throw new TypeError('A File/Blob-like input is required');
     }
+    if (file.size === 0) throw new RangeError('Cannot prepare an empty file');
+    protocol.assertSafeLogicalFilename(file.name);
     if (!sha256 || typeof sha256.create !== 'function') {
       throw new Error('Incremental SHA-256 dependency is unavailable');
     }
@@ -1164,7 +1190,7 @@
 
     throwIfAborted(config.signal);
     const manifest = protocol.createManifest({
-      filename: file.name || 'unnamed.bin',
+      filename: file.name,
       totalSize: file.size,
       sha256: wholeHasher.hex(),
       chunkSize,
@@ -1354,6 +1380,82 @@
 // AIRGAP INLINE END: src/transmission-controller.js
 </script>
   <script>
+// AIRGAP INLINE BEGIN: src/unit-lifecycle.js
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  root.AirGapBigFile = Object.assign(root.AirGapBigFile || {}, api);
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';
+
+  function createAsyncUnitLifecycle({ nextUnit, loadUnit, initializeUnit }) {
+    if (typeof nextUnit !== 'function' || typeof loadUnit !== 'function' ||
+        typeof initializeUnit !== 'function') {
+      throw new TypeError('nextUnit, loadUnit, and initializeUnit are required');
+    }
+
+    let revision = 0;
+    let pending = null;
+    let initialized = null;
+
+    function ensureInitialized() {
+      if (initialized) return Promise.resolve(initialized);
+      if (pending) return pending.promise;
+
+      const item = nextUnit();
+      if (!item) return Promise.resolve(null);
+      const ownerRevision = revision;
+      const promise = Promise.resolve()
+        .then(() => loadUnit(item))
+        .then((payload) => {
+          if (ownerRevision !== revision) return null;
+          const value = initializeUnit(item, payload);
+          if (ownerRevision !== revision) return null;
+          initialized = Object.freeze({ item, value });
+          return initialized;
+        })
+        .catch((error) => {
+          if (ownerRevision !== revision) return null;
+          throw error;
+        })
+        .finally(() => {
+          if (pending && pending.revision === ownerRevision) pending = null;
+        });
+
+      pending = Object.freeze({ item, revision: ownerRevision, promise });
+      return promise;
+    }
+
+    function advance() {
+      if (!initialized) throw new Error('Cannot advance before the current unit is initialized');
+      revision += 1;
+      initialized = null;
+      return ensureInitialized();
+    }
+
+    function invalidate() {
+      revision += 1;
+      pending = null;
+      initialized = null;
+    }
+
+    function snapshot() {
+      return Object.freeze({
+        revision,
+        pendingItem: pending ? pending.item : null,
+        initializedItem: initialized ? initialized.item : null,
+      });
+    }
+
+    return { ensureInitialized, advance, invalidate, snapshot };
+  }
+
+  return { createAsyncUnitLifecycle };
+});
+
+// AIRGAP INLINE END: src/unit-lifecycle.js
+</script>
+  <script>
 // AIRGAP INLINE BEGIN: src/app.js
 (function () {
   'use strict';
@@ -1364,7 +1466,7 @@
   let wasmReady = false;
   let prepareAbort = null;
   let renderTimer = null;
-  let streamGeneration = 0;
+  let unitLifecycle = null;
   let streamReady = false;
   let framesInBurst = 0;
   let framesInBurstTarget = 0;
@@ -1510,37 +1612,54 @@
     }
   }
 
-  async function initializeNextUnit() {
-    const token = ++streamGeneration;
+  function createUnitLifecycle() {
+    const transfer = {
+      file: state.file,
+      manifest: state.manifest,
+      manifestBytes: state.manifestBytes,
+      chunks: state.chunks,
+      burstFactor: state.burstFactor,
+    };
+    return A.createAsyncUnitLifecycle({
+      nextUnit: controller.nextUnit,
+      async loadUnit(item) {
+        if (item.kind === A.ITEM.MANIFEST) {
+          return { bytes: transfer.manifestBytes, filename: 'manifest.json', logicalOffset: 0 };
+        }
+        const descriptor = transfer.chunks[item.index];
+        return {
+          bytes: await A.loadChunk(transfer.file, descriptor),
+          filename: A.partFilename(transfer.manifest.filename, item.index, transfer.chunks.length),
+          logicalOffset: item.index + 1,
+        };
+      },
+      initializeUnit(_item, payload) {
+        initEncode(payload.filename,
+          A.logicalEncodeId(transfer.manifest.encode_id_base, payload.logicalOffset));
+        feedEncoder(payload.bytes);
+        framesInBurst = 0;
+        framesInBurstTarget = A.framesForBurst(payload.bytes.length, transfer.burstFactor);
+        streamReady = true;
+        render();
+        return framesInBurstTarget;
+      },
+    });
+  }
+
+  async function ensureCurrentUnit() {
+    const result = await unitLifecycle.ensureInitialized();
+    if (!result) streamReady = false;
+    render();
+    return Boolean(result);
+  }
+
+  async function advanceCurrentUnit() {
     streamReady = false;
     render();
-    const item = controller.nextUnit();
-    if (!item) return false;
-
-    let bytes;
-    let filename;
-    let logicalOffset;
-    if (item.kind === A.ITEM.MANIFEST) {
-      bytes = state.manifestBytes;
-      filename = 'manifest.json';
-      logicalOffset = 0;
-    } else {
-      const descriptor = state.chunks[item.index];
-      bytes = await A.loadChunk(state.file, descriptor);
-      filename = A.partFilename(state.manifest.filename, item.index, state.chunks.length);
-      logicalOffset = item.index + 1;
-    }
-
-    if (token !== streamGeneration ||
-        (state.status !== A.STATUS.SENDING && state.status !== A.STATUS.PAUSED)) return false;
-    initEncode(filename, A.logicalEncodeId(state.manifest.encode_id_base, logicalOffset));
-    feedEncoder(bytes);
-    framesInBurst = 0;
-    framesInBurstTarget = A.framesForBurst(bytes.length, state.burstFactor);
-    bytes = null;
-    streamReady = true;
+    const result = await unitLifecycle.advance();
+    if (!result) streamReady = false;
     render();
-    return true;
+    return Boolean(result);
   }
 
   function clearRenderTimer() {
@@ -1562,7 +1681,7 @@
     Module._cimbare_next_frame(false);
     framesInBurst += 1;
     if (framesInBurst >= framesInBurstTarget) {
-      void initializeNextUnit().then((ready) => {
+      void advanceCurrentUnit().then((ready) => {
         if (ready && state.status === A.STATUS.SENDING) scheduleFrame();
       }).catch(handleRuntimeError);
       return;
@@ -1573,7 +1692,8 @@
 
   function handleRuntimeError(error) {
     clearRenderTimer();
-    streamGeneration += 1;
+    if (unitLifecycle) unitLifecycle.invalidate();
+    unitLifecycle = null;
     streamReady = false;
     lastError = error instanceof Error ? error.message : String(error);
     if (controller && (state.status === A.STATUS.SENDING || state.status === A.STATUS.PAUSED)) {
@@ -1587,9 +1707,10 @@
     state.fps = Number(byId('fps').value);
     state.burstFactor = Number(byId('burstFactor').value);
     controller.start();
+    unitLifecycle = createUnitLifecycle();
     render();
     try {
-      if (await initializeNextUnit()) scheduleFrame();
+      if (await ensureCurrentUnit()) scheduleFrame();
     } catch (error) {
       handleRuntimeError(error);
     }
@@ -1606,7 +1727,7 @@
     controller.resume();
     render();
     try {
-      if (!streamReady && !(await initializeNextUnit())) return;
+      if (!streamReady && !(await ensureCurrentUnit())) return;
       scheduleFrame();
     } catch (error) {
       handleRuntimeError(error);
@@ -1615,7 +1736,8 @@
 
   function stopSending() {
     clearRenderTimer();
-    streamGeneration += 1;
+    if (unitLifecycle) unitLifecycle.invalidate();
+    unitLifecycle = null;
     streamReady = false;
     framesInBurst = 0;
     framesInBurstTarget = 0;
@@ -1624,14 +1746,14 @@
   }
 
   function changeMode(mode) {
-    streamGeneration += 1;
+    if (unitLifecycle) unitLifecycle.invalidate();
     streamReady = false;
     clearRenderTimer();
     if (mode === A.MODE.FOCUS) controller.focus(Number(byId('focusChunk').value));
     else controller.sweep();
     render();
     if (state.status === A.STATUS.SENDING) {
-      void initializeNextUnit().then((ready) => { if (ready) scheduleFrame(); }).catch(handleRuntimeError);
+      void ensureCurrentUnit().then((ready) => { if (ready) scheduleFrame(); }).catch(handleRuntimeError);
     }
   }
 

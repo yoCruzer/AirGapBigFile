@@ -86,9 +86,11 @@ M, Ck, M, Ck, ...
 ```
 
 The scheduler is independent of rendering. Pause freezes the current scheduler
-unit and keeps an initialized libcimbar stream alive. Resume continues rendering
-that same stream when it is still valid. Switching units reinitializes the
-encoder.
+unit. A unit already claimed from the scheduler remains owned while its ranged
+chunk load is pending; Resume joins that same initialization promise and cannot
+claim another unit. An initialized libcimbar stream also remains alive and Resume
+continues rendering it without reinitialization. Switching units reinitializes
+the encoder.
 
 ## Burst factor and fountain semantics
 

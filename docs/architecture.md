@@ -9,6 +9,7 @@ src/protocol.js                   manifest/profile and ID mapping
 src/sender-state.js               sender-owned state machine
 src/preparation.js                ranged reads and incremental hashing
 src/scheduler.js                  pure sweep/focus item selection
+src/unit-lifecycle.js             async unit ownership and initialization join
 src/app.js                        DOM, libcimbar adapter, render loop
 vendor/js-sha256-0.11.1/          pinned incremental SHA-256
 vendor/cimbar-wasm-v0.6.4/        unmodified encoder glue and WASM
@@ -25,6 +26,8 @@ The application state is `idle`, `preparing`, `ready`, `sending`, `paused`, or
 sender-local: there is no field for Receiver completion or verification.
 
 The libcimbar adapter initializes a stream only when the pure scheduler selects a
-different transmission unit. Pausing cancels the render timer but retains the
-current unit and encoder state; resuming therefore continues that initialized
-stream. Advancing, switching focus, or stopping invalidates it.
+different transmission unit. Once selected, an async lifecycle object owns that
+unit until loading and initialization finish. Pausing retains both pending and
+initialized ownership; resuming joins a pending load or continues the initialized
+stream without advancing the scheduler. Advancing, switching focus, or stopping
+invalidates ownership explicitly.

@@ -7,7 +7,7 @@
   let wasmReady = false;
   let prepareAbort = null;
   let renderTimer = null;
-  let streamGeneration = 0;
+  let unitLifecycle = null;
   let streamReady = false;
   let framesInBurst = 0;
   let framesInBurstTarget = 0;
@@ -153,37 +153,54 @@
     }
   }
 
-  async function initializeNextUnit() {
-    const token = ++streamGeneration;
+  function createUnitLifecycle() {
+    const transfer = {
+      file: state.file,
+      manifest: state.manifest,
+      manifestBytes: state.manifestBytes,
+      chunks: state.chunks,
+      burstFactor: state.burstFactor,
+    };
+    return A.createAsyncUnitLifecycle({
+      nextUnit: controller.nextUnit,
+      async loadUnit(item) {
+        if (item.kind === A.ITEM.MANIFEST) {
+          return { bytes: transfer.manifestBytes, filename: 'manifest.json', logicalOffset: 0 };
+        }
+        const descriptor = transfer.chunks[item.index];
+        return {
+          bytes: await A.loadChunk(transfer.file, descriptor),
+          filename: A.partFilename(transfer.manifest.filename, item.index, transfer.chunks.length),
+          logicalOffset: item.index + 1,
+        };
+      },
+      initializeUnit(_item, payload) {
+        initEncode(payload.filename,
+          A.logicalEncodeId(transfer.manifest.encode_id_base, payload.logicalOffset));
+        feedEncoder(payload.bytes);
+        framesInBurst = 0;
+        framesInBurstTarget = A.framesForBurst(payload.bytes.length, transfer.burstFactor);
+        streamReady = true;
+        render();
+        return framesInBurstTarget;
+      },
+    });
+  }
+
+  async function ensureCurrentUnit() {
+    const result = await unitLifecycle.ensureInitialized();
+    if (!result) streamReady = false;
+    render();
+    return Boolean(result);
+  }
+
+  async function advanceCurrentUnit() {
     streamReady = false;
     render();
-    const item = controller.nextUnit();
-    if (!item) return false;
-
-    let bytes;
-    let filename;
-    let logicalOffset;
-    if (item.kind === A.ITEM.MANIFEST) {
-      bytes = state.manifestBytes;
-      filename = 'manifest.json';
-      logicalOffset = 0;
-    } else {
-      const descriptor = state.chunks[item.index];
-      bytes = await A.loadChunk(state.file, descriptor);
-      filename = A.partFilename(state.manifest.filename, item.index, state.chunks.length);
-      logicalOffset = item.index + 1;
-    }
-
-    if (token !== streamGeneration ||
-        (state.status !== A.STATUS.SENDING && state.status !== A.STATUS.PAUSED)) return false;
-    initEncode(filename, A.logicalEncodeId(state.manifest.encode_id_base, logicalOffset));
-    feedEncoder(bytes);
-    framesInBurst = 0;
-    framesInBurstTarget = A.framesForBurst(bytes.length, state.burstFactor);
-    bytes = null;
-    streamReady = true;
+    const result = await unitLifecycle.advance();
+    if (!result) streamReady = false;
     render();
-    return true;
+    return Boolean(result);
   }
 
   function clearRenderTimer() {
@@ -205,7 +222,7 @@
     Module._cimbare_next_frame(false);
     framesInBurst += 1;
     if (framesInBurst >= framesInBurstTarget) {
-      void initializeNextUnit().then((ready) => {
+      void advanceCurrentUnit().then((ready) => {
         if (ready && state.status === A.STATUS.SENDING) scheduleFrame();
       }).catch(handleRuntimeError);
       return;
@@ -216,7 +233,8 @@
 
   function handleRuntimeError(error) {
     clearRenderTimer();
-    streamGeneration += 1;
+    if (unitLifecycle) unitLifecycle.invalidate();
+    unitLifecycle = null;
     streamReady = false;
     lastError = error instanceof Error ? error.message : String(error);
     if (controller && (state.status === A.STATUS.SENDING || state.status === A.STATUS.PAUSED)) {
@@ -230,9 +248,10 @@
     state.fps = Number(byId('fps').value);
     state.burstFactor = Number(byId('burstFactor').value);
     controller.start();
+    unitLifecycle = createUnitLifecycle();
     render();
     try {
-      if (await initializeNextUnit()) scheduleFrame();
+      if (await ensureCurrentUnit()) scheduleFrame();
     } catch (error) {
       handleRuntimeError(error);
     }
@@ -249,7 +268,7 @@
     controller.resume();
     render();
     try {
-      if (!streamReady && !(await initializeNextUnit())) return;
+      if (!streamReady && !(await ensureCurrentUnit())) return;
       scheduleFrame();
     } catch (error) {
       handleRuntimeError(error);
@@ -258,7 +277,8 @@
 
   function stopSending() {
     clearRenderTimer();
-    streamGeneration += 1;
+    if (unitLifecycle) unitLifecycle.invalidate();
+    unitLifecycle = null;
     streamReady = false;
     framesInBurst = 0;
     framesInBurstTarget = 0;
@@ -267,14 +287,14 @@
   }
 
   function changeMode(mode) {
-    streamGeneration += 1;
+    if (unitLifecycle) unitLifecycle.invalidate();
     streamReady = false;
     clearRenderTimer();
     if (mode === A.MODE.FOCUS) controller.focus(Number(byId('focusChunk').value));
     else controller.sweep();
     render();
     if (state.status === A.STATUS.SENDING) {
-      void initializeNextUnit().then((ready) => { if (ready) scheduleFrame(); }).catch(handleRuntimeError);
+      void ensureCurrentUnit().then((ready) => { if (ready) scheduleFrame(); }).catch(handleRuntimeError);
     }
   }
 

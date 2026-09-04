@@ -47,6 +47,7 @@ def main() -> int:
         "AIRGAP INLINE BEGIN: vendor/js-sha256-0.11.1/sha256.js",
         "AIRGAP INLINE BEGIN: src/preparation.js",
         "AIRGAP INLINE BEGIN: src/scheduler.js",
+        "AIRGAP INLINE BEGIN: src/unit-lifecycle.js",
         "AIRGAP INLINE BEGIN: src/app.js",
         "Module.wasmBinary",
     ):
