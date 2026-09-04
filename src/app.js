@@ -90,6 +90,9 @@
 
   async function prepareFile(file) {
     if (!file) return;
+    if (state.status === A.STATUS.PREPARING ||
+        state.status === A.STATUS.SENDING ||
+        state.status === A.STATUS.PAUSED) return;
     lastError = '';
     controller = null;
     A.beginPreparation(state, file);
