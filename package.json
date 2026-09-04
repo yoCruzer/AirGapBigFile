@@ -1,0 +1,12 @@
+{
+  "name": "airgap-bigfile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Offline browser-based CIMBAR large-file sender",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
