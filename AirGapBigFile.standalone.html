@@ -60,6 +60,8 @@
     }
     h1 { margin: 0; font-size: 18px; letter-spacing: .01em; }
     header p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+    .language-control { display: flex; align-items: center; gap: 8px; }
+    .language-control select { width: auto; margin: 0; }
     .wasm { color: var(--muted); font-size: 12px; white-space: nowrap; }
     .wasm b { color: var(--green); font-weight: 600; }
     main {
@@ -109,7 +111,7 @@
       background: #030405;
     }
     #canvasWrap::after {
-      content: "Prepared frames appear here";
+      content: attr(data-placeholder);
       color: #65738a;
       font-size: 13px;
     }
@@ -135,76 +137,84 @@
   <header>
     <div>
       <h1>AirGap BigFile</h1>
-      <p>Offline CIMBAR sender for AirGapFree</p>
+      <p data-i18n="subtitle">Offline CIMBAR sender for AirGapFree</p>
     </div>
-    <div class="wasm">Encoder: <b id="wasmValue">loading…</b></div>
+    <label class="language-control"><span data-i18n="language">Language</span><select id="language"><option value="zh-Hans">简体中文</option><option value="en">English</option></select></label>
+    <div class="wasm"><span data-i18n="encoder">Encoder</span>: <b id="wasmValue">loading…</b></div>
   </header>
 
   <main>
     <section class="panel">
       <div class="section">
-        <h2>1 · Choose one file</h2>
+        <h2 data-i18n="choose">1 · Choose one file</h2>
         <input id="fileInput" type="file">
         <div id="dropzone" role="button" tabindex="0">
-          <div><strong>Choose or drop a file</strong><span>One file per v1 transfer</span></div>
+          <div><strong data-i18n="drop">Choose or drop a file</strong><span data-i18n="oneFile">One file per v1 transfer</span></div>
         </div>
-        <p class="local-note">Local only — the file is never uploaded or sent through a network.</p>
+        <p class="local-note" data-i18n="local">Local only — the file is never uploaded or sent through a network.</p>
       </div>
 
       <div class="section">
-        <h2>2 · Prepare</h2>
+        <h2 data-i18n="prepare">2 · Prepare</h2>
         <div class="progress"><div id="prepareBar"></div></div>
-        <div id="prepareLabel">Choose one file to begin</div>
-        <button id="cancelPrepareButton" hidden>Cancel preparation</button>
+        <div id="prepareLabel" data-i18n="chooseBegin">Choose one file to begin</div>
+        <button id="cancelPrepareButton" hidden data-i18n="cancel">Cancel preparation</button>
       </div>
 
       <details class="section">
-        <summary>Advanced controls</summary>
+        <summary data-i18n="advanced">Advanced controls</summary>
         <div class="control-grid" style="margin-top: 12px">
-          <label>Chunk size
+          <label><span data-i18n="chunkSize">Chunk size</span>
             <select id="chunkSize">
-              <option value="auto" selected>Auto · prefer 5 MiB</option>
+              <option value="auto" selected data-i18n="autoChunk">Auto · prefer 5 MiB</option>
               <option value="5242880">5 MiB</option>
               <option value="10485760">10 MiB</option>
             </select>
           </label>
-          <label>FPS
+          <label><span data-i18n="targetFps">Target FPS</span>
             <select id="fps">
               <option value="12">12</option>
               <option value="15" selected>15</option>
               <option value="18">18</option>
+              <option value="20">20</option>
+              <option value="24">24</option>
+              <option value="30">30</option>
             </select>
           </label>
-          <label>Burst factor
+          <label style="grid-column: 1 / -1"><span data-i18n="factor">Burst factor</span>
             <select id="burstFactor">
-              <option value="1.5">1.5×</option>
-              <option value="2" selected>2×</option>
-              <option value="3">3×</option>
+              <option value="1.2" data-i18n="factor12">1.2× · Fast / experimental</option>
+              <option value="1.5" data-i18n="factor15">1.5× · Balanced</option>
+              <option value="2" selected data-i18n="factor2">2× · Reliable</option>
+              <option value="3" data-i18n="factor3">3× · Extra redundancy</option>
             </select>
           </label>
         </div>
-        <p class="hint">Burst factor controls one continuous stream's display length. Returning to a chunk starts its fountain sequence again; it does not continue prior block numbering.</p>
+        <p class="hint" data-i18n="burstHint">Burst factor controls one continuous stream's display length. Returning to a chunk starts its fountain sequence again; it does not continue prior block numbering.</p>
+        <p class="hint" data-i18n="controlsHint"></p>
       </details>
 
       <div class="section">
-        <h2>3 · Send</h2>
+        <h2 data-i18n="send">3 · Send</h2>
         <div class="buttons">
-          <button id="startButton" class="primary" disabled>Start sending</button>
-          <button id="pauseButton" disabled>Pause</button>
-          <button id="stopButton" class="danger" disabled>Stop</button>
-          <button id="fullscreenButton" disabled>Fullscreen</button>
+          <button id="startButton" class="primary" disabled data-i18n="start">Start sending</button>
+          <button id="pauseButton" disabled data-i18n="pause">Pause</button>
+          <button id="stopButton" class="danger" disabled data-i18n="stop">Stop</button>
+          <button id="fullscreenButton" disabled data-i18n="fullscreen">Fullscreen</button>
         </div>
       </div>
 
       <div class="section">
-        <h2>Focused resend</h2>
+        <h2 data-i18n="focused">Focused resend</h2>
         <div class="focus-row">
           <select id="focusChunk" disabled></select>
-          <button id="focusButton" disabled>Focus</button>
+          <button id="focusButton" disabled data-i18n="focus">Focus</button>
         </div>
-        <button id="sweepButton" style="margin-top: 8px" disabled>Return to normal sweep</button>
-        <p class="hint">Choose only a chunk AirGapFree reports missing. This retransmits it; it does not confirm receipt.</p>
+        <button id="sweepButton" style="margin-top: 8px" disabled data-i18n="sweep">Return to normal sweep</button>
+        <p class="hint" data-i18n="focusHint">Choose only a chunk AirGapFree reports missing. This retransmits it; it does not confirm receipt.</p>
       </div>
+      <p id="visibilityNotice" class="hint" hidden></p>
+      <p id="wakeNotice" class="hint" hidden></p>
       <div id="errorBox" hidden></div>
     </section>
 
@@ -212,27 +222,34 @@
 
     <aside class="panel">
       <div class="section">
-        <h2>Transmission</h2>
+        <h2 data-i18n="transmission">Transmission</h2>
         <dl class="facts">
-          <div><dt>State</dt><dd id="stateValue">idle</dd></div>
-          <div><dt>Mode</dt><dd id="modeValue">normal sweep</dd></div>
-          <div><dt>Current item</dt><dd id="currentValue">—</dd></div>
-          <div><dt>Sweep / pass</dt><dd id="passValue">—</dd></div>
-          <div><dt>Current burst</dt><dd id="burstValue">—</dd></div>
+          <div><dt data-i18n="state">State</dt><dd id="stateValue">idle</dd></div>
+          <div><dt data-i18n="mode">Mode</dt><dd id="modeValue">normal sweep</dd></div>
+          <div><dt data-i18n="current">Current item</dt><dd id="currentValue">—</dd></div>
+          <div><dt data-i18n="pass">Sweep / pass</dt><dd id="passValue">—</dd></div>
+          <div><dt data-i18n="targetFps">Target FPS</dt><dd id="targetFpsValue">—</dd></div>
+          <div><dt data-i18n="actualFps">Actual FPS</dt><dd id="actualFpsValue">—</dd></div>
+          <div><dt data-i18n="interval">Frame interval</dt><dd id="intervalValue">—</dd></div>
+          <div><dt data-i18n="remaining">Current burst remaining</dt><dd id="remainingValue">—</dd></div>
+          <div><dt data-i18n="estimate" id="estimateLabel">Estimated sweep duration</dt><dd id="estimateValue">—</dd></div>
+          <div><dt data-i18n="wake">Screen wake lock</dt><dd id="wakeValue">—</dd></div>
+          <div><dt data-i18n="burst">Current burst</dt><dd id="burstValue">—</dd></div>
         </dl>
       </div>
       <div class="section">
-        <h2>Prepared file</h2>
+        <p class="hint" data-i18n="metricsHint"></p>
+        <h2 data-i18n="prepared">Prepared file</h2>
         <dl class="facts">
-          <div><dt>Filename</dt><dd id="filenameValue">—</dd></div>
-          <div><dt>File size</dt><dd id="fileSizeValue">—</dd></div>
-          <div><dt>Whole SHA-256</dt><dd id="hashValue">—</dd></div>
-          <div><dt>Chunk size</dt><dd id="chunkSizeValue">—</dd></div>
-          <div><dt>Chunk count</dt><dd id="chunkCountValue">—</dd></div>
-          <div><dt>Encode base</dt><dd id="encodeBaseValue">—</dd></div>
+          <div><dt data-i18n="filename">Filename</dt><dd id="filenameValue">—</dd></div>
+          <div><dt data-i18n="fileSize">File size</dt><dd id="fileSizeValue">—</dd></div>
+          <div><dt data-i18n="hash">Whole SHA-256</dt><dd id="hashValue">—</dd></div>
+          <div><dt data-i18n="chunkSize">Chunk size</dt><dd id="chunkSizeValue">—</dd></div>
+          <div><dt data-i18n="chunkCount">Chunk count</dt><dd id="chunkCountValue">—</dd></div>
+          <div><dt data-i18n="encodeBase">Encode base</dt><dd id="encodeBaseValue">—</dd></div>
         </dl>
       </div>
-      <p class="hint">Normal sequence: Manifest → Chunk 1 → Manifest → Chunk 2 → … and repeat. Replays are expected; only AirGapFree knows which chunks it has verified.</p>
+      <p class="hint" data-i18n="sequenceHint">Normal sequence: Manifest → Chunk 1 → Manifest → Chunk 2 → … and repeat. Replays are expected; only AirGapFree knows which chunks it has verified.</p>
     </aside>
   </main>
 
@@ -1088,7 +1105,17 @@
     state.focusedChunk = null;
   }
 
+  function activeParametersLocked(status) {
+    return status === STATUS.SENDING || status === STATUS.PAUSED;
+  }
+
+  function shouldPauseForVisibility(status, hidden) {
+    return status === STATUS.SENDING && hidden;
+  }
+
   return {
+    activeParametersLocked,
+    shouldPauseForVisibility,
     STATUS,
     MODE,
     createSenderState,
@@ -1232,6 +1259,12 @@
     return Math.max(30, Math.ceil((byteCount / ESTIMATED_BYTES_PER_FRAME) * burstFactor));
   }
 
+  function framesForCycle(manifestBytes, chunks, burstFactor, focusedChunk = null) {
+    const manifestFrames = framesForBurst(manifestBytes, burstFactor);
+    const selected = focusedChunk === null ? chunks : [chunks[focusedChunk]];
+    return selected.reduce((total, chunk) => total + manifestFrames + framesForBurst(chunk.size, burstFactor), 0);
+  }
+
   function createScheduler(chunkCount) {
     if (!Number.isInteger(chunkCount) || chunkCount < 1) {
       throw new RangeError('chunkCount must be a positive integer');
@@ -1302,7 +1335,7 @@
     return { nextItem, focus, sweep, pause, resume, snapshot };
   }
 
-  return { ITEM, SCHEDULER_MODE: MODE, ESTIMATED_BYTES_PER_FRAME, framesForBurst, createScheduler };
+  return { ITEM, SCHEDULER_MODE: MODE, ESTIMATED_BYTES_PER_FRAME, framesForBurst, framesForCycle, createScheduler };
 });
 
 // AIRGAP INLINE END: src/scheduler.js
@@ -1460,12 +1493,329 @@
 // AIRGAP INLINE END: src/unit-lifecycle.js
 </script>
   <script>
+// AIRGAP INLINE BEGIN: src/i18n.js
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  root.AirGapBigFile = Object.assign(root.AirGapBigFile || {}, api);
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';
+
+  const TRANSLATIONS = {
+  "en": {
+    "subtitle": "Offline CIMBAR sender for AirGapFree",
+    "choose": "1 · Choose one file",
+    "drop": "Choose or drop a file",
+    "oneFile": "One file per v1 transfer",
+    "local": "Local only — the file is never uploaded or sent through a network.",
+    "prepare": "2 · Prepare",
+    "chooseBegin": "Choose one file to begin",
+    "cancel": "Cancel preparation",
+    "advanced": "Advanced controls",
+    "autoChunk": "Auto · prefer 5 MiB",
+    "send": "3 · Send",
+    "start": "Start sending",
+    "pause": "Pause",
+    "stop": "Stop",
+    "fullscreen": "Fullscreen",
+    "focused": "Focused resend",
+    "focus": "Focus",
+    "sweep": "Return to normal sweep",
+    "focusHint": "Choose only a chunk AirGapFree reports missing. This retransmits it; it does not confirm receipt.",
+    "transmission": "Transmission",
+    "state": "State",
+    "mode": "Mode",
+    "current": "Current item",
+    "pass": "Sweep / pass",
+    "burst": "Current burst",
+    "prepared": "Prepared file",
+    "filename": "Filename",
+    "fileSize": "File size",
+    "hash": "Whole SHA-256",
+    "chunkSize": "Chunk size",
+    "chunkCount": "Chunk count",
+    "encodeBase": "Encode base",
+    "sequenceHint": "Normal sequence: Manifest → Chunk 1 → Manifest → Chunk 2 → … and repeat. Replays are expected; only AirGapFree knows which chunks it has verified.",
+    "burstHint": "Burst factor controls one continuous stream's display length. Returning to a chunk starts its fountain sequence again; it does not continue prior block numbering.",
+    "targetFps": "Target FPS",
+    "factor": "Burst factor",
+    "encoder": "Encoder",
+    "language": "Language",
+    "canvasPlaceholder": "Prepared frames appear here",
+    "factor12": "1.2× · Fast / experimental",
+    "factor15": "1.5× · Balanced",
+    "factor2": "2× · Reliable",
+    "factor3": "3× · Extra redundancy",
+    "controlsHint": "Higher FPS may help, but depends on the browser, display and receiver camera. Lower redundancy is faster per burst but may require more replays in poor conditions.",
+    "actualFps": "Actual FPS",
+    "interval": "Frame interval",
+    "remaining": "Current burst remaining",
+    "estimate": "Estimated sweep duration",
+    "wake": "Screen wake lock",
+    "metricsHint": "Actual FPS measures browser frame submissions during visible sending, not receiver throughput or verified physical display output. Estimates exclude preparation and cannot predict receiver completion.",
+    "resume": "Resume",
+    "loading": "loading…",
+    "manifest": "Manifest",
+    "chunk": "Chunk {index}",
+    "chunkPosition": "Chunk {index} / {count}",
+    "focusMode": "focused resend · chunk {index}",
+    "sweepMode": "normal sweep",
+    "frames": "{done} / {total} frames",
+    "preparingProgress": "Preparing… {done} / {total} · chunk {index}",
+    "preparedComplete": "Preparation complete",
+    "focusEstimate": "Estimated focus cycle",
+    "duration": "~{seconds} s",
+    "durationMinutes": "~{minutes}m {seconds}s",
+    "visibilityNotice": "The page was hidden and sending was automatically paused. Confirm the receiver is ready before resuming.",
+    "wakeNotice": "Unable to keep the screen awake automatically. Please ensure the computer will not turn off its display.",
+    "wakeOff": "Not held",
+    "wakePending": "Requesting…",
+    "wakeHeld": "Active",
+    "wakeUnavailable": "Unavailable",
+    "errorEmpty": "Cannot prepare an empty file.",
+    "errorFilename": "The filename is unsafe for AirGapFree. Please rename the file.",
+    "errorLimit": "File exceeds the v1 limit of 120 × 10 MiB.",
+    "errorRead": "Unable to read the file. Please choose the file again.",
+    "errorEncoder": "The encoder failed. Stop and try again.",
+    "errorGeneric": "Operation failed. Please retry; technical details are in the browser console.",
+    "status.idle": "idle",
+    "status.preparing": "preparing",
+    "status.ready": "ready",
+    "status.sending": "sending",
+    "status.paused": "paused",
+    "status.error": "error"
+  },
+  "zh-Hans": {
+    "subtitle": "适用于 AirGapFree 的离线 CIMBAR 发送端",
+    "choose": "1 · 选择一个文件",
+    "drop": "选择或拖入文件",
+    "oneFile": "v1 每次传输一个文件",
+    "local": "仅在本机处理，文件不会上传或通过网络发送。",
+    "prepare": "2 · 准备",
+    "chooseBegin": "请选择一个文件开始",
+    "cancel": "取消准备",
+    "advanced": "高级设置",
+    "autoChunk": "自动 · 优先 5 MiB",
+    "send": "3 · 发送",
+    "start": "开始发送",
+    "pause": "暂停",
+    "stop": "停止",
+    "fullscreen": "全屏",
+    "focused": "定向重传",
+    "focus": "定向发送",
+    "sweep": "返回正常轮播",
+    "focusHint": "请选择 AirGapFree 提示缺失的分块。这只会重传该分块，不代表已确认接收。",
+    "transmission": "发送信息",
+    "state": "状态",
+    "mode": "模式",
+    "current": "当前项目",
+    "pass": "轮播轮次",
+    "burst": "当前连续帧组",
+    "prepared": "已准备文件",
+    "filename": "文件名",
+    "fileSize": "文件大小",
+    "hash": "完整文件 SHA-256",
+    "chunkSize": "分块大小",
+    "chunkCount": "分块数量",
+    "encodeBase": "编码基值",
+    "sequenceHint": "正常顺序：清单 → 分块 1 → 清单 → 分块 2 → …，循环发送。重复发送是正常行为，只有 AirGapFree 知道哪些分块已通过校验。",
+    "burstHint": "冗余度控制一次连续编码流的展示长度。重新发送分块会从头开始其喷泉编码序列，不会继续之前的块编号。",
+    "targetFps": "目标 FPS",
+    "factor": "冗余度",
+    "encoder": "编码器",
+    "language": "语言",
+    "canvasPlaceholder": "编码画面将在此显示",
+    "factor12": "1.2× · 快速 / 实验性",
+    "factor15": "1.5× · 平衡",
+    "factor2": "2× · 稳定",
+    "factor3": "3× · 强冗余",
+    "controlsHint": "更高 FPS 的实际效果受浏览器、显示器和接收端相机影响。更低冗余度可缩短每次发送，但识别条件较差时可能需要更多重传。",
+    "actualFps": "实际 FPS",
+    "interval": "帧间隔",
+    "remaining": "当前帧组剩余时间",
+    "estimate": "预计一轮轮播时长",
+    "wake": "屏幕唤醒锁",
+    "metricsHint": "实际 FPS 测量可见发送期间浏览器提交的帧率，并非接收端吞吐或经验证的屏幕输出。时长估计不含准备过程，也不能预测接收完成时间。",
+    "resume": "继续",
+    "loading": "加载中…",
+    "manifest": "清单",
+    "chunk": "分块 {index}",
+    "chunkPosition": "分块 {index} / {count}",
+    "focusMode": "定向重传 · 分块 {index}",
+    "sweepMode": "正常轮播",
+    "frames": "{done} / {total} 帧",
+    "preparingProgress": "准备中… {done} / {total} · 分块 {index}",
+    "preparedComplete": "准备完成",
+    "focusEstimate": "预计定向循环时长",
+    "duration": "约 {seconds} 秒",
+    "durationMinutes": "约 {minutes} 分 {seconds} 秒",
+    "visibilityNotice": "页面曾进入后台，发送已自动暂停。请确认接收端已准备好后继续发送。",
+    "wakeNotice": "无法自动保持屏幕唤醒，请确保电脑不会自动熄屏。",
+    "wakeOff": "未持有",
+    "wakePending": "请求中…",
+    "wakeHeld": "已启用",
+    "wakeUnavailable": "不可用",
+    "errorEmpty": "无法准备空文件。",
+    "errorFilename": "文件名不符合 AirGapFree 安全规则，请重命名文件。",
+    "errorLimit": "文件超出 v1 的 120 × 10 MiB 上限。",
+    "errorRead": "无法读取文件，请重新选择文件。",
+    "errorEncoder": "编码器运行失败，请停止后重试。",
+    "errorGeneric": "操作失败，请重试；技术详情见浏览器控制台。",
+    "status.idle": "空闲",
+    "status.preparing": "准备中",
+    "status.ready": "就绪",
+    "status.sending": "发送中",
+    "status.paused": "已暂停",
+    "status.error": "错误"
+  }
+};
+  const LANGUAGE_KEY = 'airgapBigFile.language';
+
+  function detectLanguage(preference, browserLanguage) {
+    if (preference === 'en' || preference === 'zh-Hans') return preference;
+    return /^zh(?:-|$)/i.test(browserLanguage || '') ? 'zh-Hans' : 'en';
+  }
+
+  function translate(language, key, values = {}) {
+    const template = TRANSLATIONS[language][key];
+    if (template === undefined) throw new Error(`Missing translation: ${key}`);
+    return template.replace(/\{(\w+)\}/g, (_match, name) => String(values[name]));
+  }
+
+  function errorTranslationKey(error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/empty file/.test(message)) return 'errorEmpty';
+    if (/filename.*safe/.test(message)) return 'errorFilename';
+    if (/exceeds.*limit/.test(message)) return 'errorLimit';
+    if (/Short ranged read|NotReadableError|NotFoundError/.test(message + ' ' + (error && error.name))) return 'errorRead';
+    if (/libcimbar/.test(message)) return 'errorEncoder';
+    return 'errorGeneric';
+  }
+
+  return { TRANSLATIONS, LANGUAGE_KEY, detectLanguage, translate, errorTranslationKey };
+});
+
+// AIRGAP INLINE END: src/i18n.js
+</script>
+  <script>
+// AIRGAP INLINE BEGIN: src/render-timing.js
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  root.AirGapBigFile = Object.assign(root.AirGapBigFile || {}, api);
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';
+
+  function createRenderTiming(fps) {
+    const interval = 1000 / fps;
+    let deadline = null;
+    let samples = [];
+
+    function reset() { deadline = null; samples = []; }
+
+    // Consume time deadlines, never data frames. Fractional deadlines preserve
+    // 24 FPS on 60 Hz displays; a stalled callback still submits at most one.
+    function due(now) {
+      if (deadline === null) deadline = now;
+      if (now + 0.001 < deadline) return false;
+      const elapsedSlots = Math.max(1, Math.floor((now - deadline + 0.001) / interval) + 1);
+      deadline += elapsedSlots * interval;
+      return true;
+    }
+
+    function record(now) {
+      samples.push(now);
+      while (samples.length > 1 && samples[0] < now - 2000) samples.shift();
+    }
+
+    function measurement(now) {
+      const recent = samples.filter((sample) => sample >= now - 2000);
+      if (recent.length < 2 || recent.at(-1) - recent[0] < 1000) return null;
+      // Extend through now so loading/stalls within visible sending reduce FPS.
+      const frameInterval = (now - recent[0]) / (recent.length - 1);
+      return { fps: 1000 / frameInterval, interval: frameInterval };
+    }
+
+    return { due, record, measurement, reset };
+  }
+
+  return { createRenderTiming };
+});
+
+// AIRGAP INLINE END: src/render-timing.js
+</script>
+  <script>
+// AIRGAP INLINE BEGIN: src/wake-lock.js
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  root.AirGapBigFile = Object.assign(root.AirGapBigFile || {}, api);
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';
+
+  function createScreenWakeLock(api, onStatus) {
+    let revision = 0;
+    let held = null;
+    const releaseSentinel = async (sentinel) => {
+      try { await sentinel.release(); } catch (_) { /* Best effort, never fatal. */ }
+    };
+
+    function release() {
+      revision += 1;
+      const previous = held;
+      held = null;
+      onStatus('wakeOff');
+      return previous ? releaseSentinel(previous) : Promise.resolve();
+    }
+
+    async function acquire() {
+      const previous = held;
+      held = null;
+      const owner = ++revision;
+      if (previous) await releaseSentinel(previous);
+      if (owner !== revision) return;
+      if (!api || typeof api.request !== 'function') {
+        onStatus('wakeUnavailable');
+        return;
+      }
+      onStatus('wakePending');
+      try {
+        const sentinel = await api.request('screen');
+        if (owner !== revision) { await releaseSentinel(sentinel); return; }
+        held = sentinel;
+        sentinel.addEventListener('release', () => {
+          if (held !== sentinel) return;
+          held = null;
+          onStatus('wakeUnavailable');
+        });
+        if (sentinel.released) {
+          held = null;
+          onStatus('wakeUnavailable');
+        } else onStatus('wakeHeld');
+      } catch (_) {
+        if (owner === revision) onStatus('wakeUnavailable');
+      }
+    }
+
+    return { acquire, release };
+  }
+
+  return { createScreenWakeLock };
+});
+
+// AIRGAP INLINE END: src/wake-lock.js
+</script>
+  <script>
 // AIRGAP INLINE BEGIN: src/app.js
 (function () {
   'use strict';
 
   const A = window.AirGapBigFile;
   const state = A.createSenderState();
+  let preference = null;
+  try { preference = localStorage.getItem(A.LANGUAGE_KEY); } catch (_) { /* Storage is optional. */ }
+  let language = A.detectLanguage(preference, navigator.language);
+  const t = (key, values) => A.translate(language, key, values);
   let controller = null;
   let wasmReady = false;
   let prepareAbort = null;
@@ -1476,6 +1826,14 @@
   let framesInBurstTarget = 0;
   let lastError = '';
   let idealRatio = 1;
+  let timing = A.createRenderTiming(state.fps);
+  let pauseReason = null;
+  let wakeStatus = 'wakeOff';
+  let lastMetricsRender = 0;
+  const wakeLock = A.createScreenWakeLock(navigator.wakeLock, (status) => {
+    wakeStatus = status;
+    render();
+  });
 
   const byId = (id) => document.getElementById(id);
 
@@ -1490,8 +1848,8 @@
 
   function currentItemLabel() {
     if (!state.currentItem) return '—';
-    if (state.currentItem.kind === A.ITEM.MANIFEST) return 'Manifest';
-    return `Chunk ${state.currentItem.index + 1} / ${state.chunks.length}`;
+    if (state.currentItem.kind === A.ITEM.MANIFEST) return t('manifest');
+    return t('chunkPosition', { index: state.currentItem.index + 1, count: state.chunks.length });
   }
 
   function setText(id, value) { byId(id).textContent = value; }
@@ -1503,25 +1861,52 @@
     state.chunks.forEach((chunk) => {
       const option = document.createElement('option');
       option.value = String(chunk.index);
-      option.textContent = `Chunk ${chunk.index + 1}`;
+      option.textContent = t('chunk', { index: chunk.index + 1 });
       select.append(option);
     });
     if (selected && Number(selected) < state.chunks.length) select.value = selected;
   }
 
+  function formatDuration(seconds) {
+    const rounded = Math.ceil(seconds);
+    return rounded < 60 ? t('duration', { seconds: rounded })
+      : t('durationMinutes', { minutes: Math.floor(rounded / 60), seconds: rounded % 60 });
+  }
+
   function render() {
     const prepared = Boolean(state.manifest);
     const preparing = state.status === A.STATUS.PREPARING;
-    const active = state.status === A.STATUS.SENDING || state.status === A.STATUS.PAUSED;
+    const active = A.activeParametersLocked(state.status);
 
-    setText('stateValue', state.status);
-    setText('wasmValue', wasmReady ? 'ready' : 'loading…');
+    const targetFps = active ? state.fps : Number(byId('fps').value);
+    const factor = active ? state.burstFactor : Number(byId('burstFactor').value);
+    const measured = state.status === A.STATUS.SENDING ? timing.measurement(performance.now()) : null;
+    const estimateFps = measured ? measured.fps : targetFps;
+    setText('targetFpsValue', String(targetFps));
+    setText('actualFpsValue', measured ? measured.fps.toFixed(1) : '—');
+    setText('intervalValue', measured ? `${measured.interval.toFixed(1)} ms` : '—');
+    setText('remainingValue', streamReady
+      ? formatDuration(Math.max(0, framesInBurstTarget - framesInBurst) / estimateFps) : '—');
+    setText('estimateLabel', t(state.mode === A.MODE.FOCUS ? 'focusEstimate' : 'estimate'));
+    setText('estimateValue', prepared ? formatDuration(A.framesForCycle(
+      state.manifestBytes.length, state.chunks, factor,
+      state.mode === A.MODE.FOCUS ? state.focusedChunk : null) / estimateFps) : '—');
+    setText('wakeValue', t(wakeStatus));
+    byId('visibilityNotice').hidden = pauseReason !== 'visibility';
+    setText('visibilityNotice', t('visibilityNotice'));
+    byId('wakeNotice').hidden = wakeStatus !== 'wakeUnavailable';
+    setText('wakeNotice', t('wakeNotice'));
+    byId('fps').disabled = active;
+    byId('burstFactor').disabled = active;
+
+    setText('stateValue', t('status.' + state.status));
+    setText('wasmValue', t(wasmReady ? 'status.ready' : 'loading'));
     setText('modeValue', state.mode === A.MODE.FOCUS
-      ? `focused resend · chunk ${state.focusedChunk + 1}`
-      : 'normal sweep');
+      ? t('focusMode', { index: state.focusedChunk + 1 })
+      : t('sweepMode'));
     setText('currentValue', currentItemLabel());
     setText('passValue', prepared ? String(state.pass) : '—');
-    setText('burstValue', streamReady ? `${framesInBurst} / ${framesInBurstTarget} frames` : '—');
+    setText('burstValue', streamReady ? t('frames', { done: framesInBurst, total: framesInBurstTarget }) : '—');
     setText('filenameValue', state.file ? state.file.name : '—');
     setText('fileSizeValue', state.file ? formatBytes(state.file.size) : '—');
     setText('hashValue', prepared ? state.manifest.sha256 : '—');
@@ -1532,12 +1917,12 @@
     const pct = preparing ? state.preparation.percentage : prepared ? 100 : 0;
     byId('prepareBar').style.width = `${pct}%`;
     setText('prepareLabel', preparing
-      ? `Preparing… ${formatBytes(state.preparation.hashedBytes)} / ${formatBytes(state.preparation.totalBytes)} · chunk ${state.preparation.currentChunk}`
-      : prepared ? 'Preparation complete' : 'Choose one file to begin');
+      ? t('preparingProgress', { done: formatBytes(state.preparation.hashedBytes), total: formatBytes(state.preparation.totalBytes), index: state.preparation.currentChunk })
+      : t(prepared ? 'preparedComplete' : 'chooseBegin'));
 
     byId('startButton').disabled = !prepared || !wasmReady || state.status !== A.STATUS.READY;
     byId('pauseButton').disabled = !active;
-    byId('pauseButton').textContent = state.status === A.STATUS.PAUSED ? 'Resume' : 'Pause';
+    byId('pauseButton').textContent = t(state.status === A.STATUS.PAUSED ? 'resume' : 'pause');
     byId('stopButton').disabled = !active;
     byId('cancelPrepareButton').hidden = !preparing;
     byId('fileInput').disabled = preparing || active;
@@ -1547,7 +1932,7 @@
     byId('sweepButton').disabled = !prepared || preparing || state.mode === A.MODE.SWEEP;
     byId('fullscreenButton').disabled = !streamReady;
     byId('errorBox').hidden = !lastError;
-    setText('errorBox', lastError);
+    setText('errorBox', lastError ? t(lastError) : '');
     byId('canvasWrap').classList.toggle('active', active);
   }
 
@@ -1580,7 +1965,8 @@
         if (state.status === A.STATUS.PREPARING) A.cancelPreparation(state);
       } else {
         if (state.status === A.STATUS.PREPARING) A.failPreparation(state, error);
-        lastError = error instanceof Error ? error.message : String(error);
+        console.error(error);
+        lastError = A.errorTranslationKey(error);
       }
     } finally {
       prepareAbort = null;
@@ -1669,39 +2055,62 @@
   }
 
   function clearRenderTimer() {
-    if (renderTimer !== null) clearTimeout(renderTimer);
+    if (renderTimer !== null) cancelAnimationFrame(renderTimer);
     renderTimer = null;
   }
 
   function scheduleFrame() {
     clearRenderTimer();
-    if (state.status !== A.STATUS.SENDING || !streamReady) return;
-    const interval = Math.floor(1000 / state.fps);
-    renderTimer = setTimeout(renderFrame, interval);
+    if (state.status !== A.STATUS.SENDING || !streamReady || document.hidden) return;
+    renderTimer = requestAnimationFrame(renderFrame);
   }
 
   function renderFrame() {
     renderTimer = null;
+    if (A.shouldPauseForVisibility(state.status, document.hidden)) { pauseSending('visibility'); return; }
     if (state.status !== A.STATUS.SENDING || !streamReady) return;
-    Module._cimbare_render();
-    Module._cimbare_next_frame(false);
-    framesInBurst += 1;
-    if (framesInBurst >= framesInBurstTarget) {
-      void advanceCurrentUnit().then((ready) => {
-        if (ready && state.status === A.STATUS.SENDING) scheduleFrame();
-      }).catch(handleRuntimeError);
-      return;
+    const now = performance.now();
+    try {
+      if (timing.due(now)) {
+        // Leave the final frame on the canvas for a full paced interval before
+        // loading/initializing the next unit, which can change the canvas.
+        if (framesInBurst >= framesInBurstTarget) {
+          void advanceCurrentUnit().then((ready) => {
+            if (ready) scheduleFrame();
+          }).catch(handleRuntimeError);
+          return;
+        }
+        Module._cimbare_render();
+        Module._cimbare_next_frame(false);
+        framesInBurst += 1;
+        timing.record(performance.now());
+      }
+      if (now - lastMetricsRender >= 250) { lastMetricsRender = now; render(); }
+      scheduleFrame();
+    } catch (error) {
+      handleRuntimeError(error);
     }
-    if (framesInBurst % state.fps === 0) render();
-    scheduleFrame();
+  }
+
+  function pauseSending(reason) {
+    clearRenderTimer();
+    controller.pause();
+    pauseReason = reason;
+    timing.reset();
+    void wakeLock.release();
+    render();
   }
 
   function handleRuntimeError(error) {
     clearRenderTimer();
+    void wakeLock.release();
+    pauseReason = null;
+    timing.reset();
     if (unitLifecycle) unitLifecycle.invalidate();
     unitLifecycle = null;
     streamReady = false;
-    lastError = error instanceof Error ? error.message : String(error);
+    console.error(error);
+    lastError = A.errorTranslationKey(error);
     if (controller && (state.status === A.STATUS.SENDING || state.status === A.STATUS.PAUSED)) {
       controller.stop();
     }
@@ -1709,10 +2118,14 @@
   }
 
   async function startSending() {
+    if (document.hidden) return;
     lastError = '';
     state.fps = Number(byId('fps').value);
     state.burstFactor = Number(byId('burstFactor').value);
     controller.start();
+    pauseReason = null;
+    timing = A.createRenderTiming(state.fps);
+    void wakeLock.acquire();
     unitLifecycle = createUnitLifecycle();
     render();
     try {
@@ -1724,13 +2137,14 @@
 
   async function togglePause() {
     if (state.status === A.STATUS.SENDING) {
-      clearRenderTimer();
-      controller.pause();
-      render();
+      pauseSending('manual');
       return;
     }
-    if (state.status !== A.STATUS.PAUSED) return;
+    if (state.status !== A.STATUS.PAUSED || document.hidden) return;
     controller.resume();
+    pauseReason = null;
+    timing.reset();
+    void wakeLock.acquire();
     render();
     try {
       if (!streamReady && !(await ensureCurrentUnit())) return;
@@ -1742,6 +2156,9 @@
 
   function stopSending() {
     clearRenderTimer();
+    void wakeLock.release();
+    pauseReason = null;
+    timing.reset();
     if (unitLifecycle) unitLifecycle.invalidate();
     unitLifecycle = null;
     streamReady = false;
@@ -1777,6 +2194,28 @@
     }
   }
 
+  function applyLanguage() {
+    document.documentElement.lang = language;
+    byId('language').value = language;
+    document.querySelectorAll('[data-i18n]').forEach((element) => {
+      element.textContent = t(element.dataset.i18n);
+    });
+    byId('canvasWrap').dataset.placeholder = t('canvasPlaceholder');
+    renderFocusOptions();
+    render();
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (A.shouldPauseForVisibility(state.status, document.hidden)) pauseSending('visibility');
+  });
+  for (const id of ['fps', 'burstFactor']) {
+    byId(id).addEventListener('change', () => { timing.reset(); render(); });
+  }
+  byId('language').addEventListener('change', () => {
+    language = byId('language').value;
+    try { localStorage.setItem(A.LANGUAGE_KEY, language); } catch (_) { /* Storage is optional. */ }
+    applyLanguage();
+  });
   byId('fileInput').addEventListener('change', (event) => void prepareFile(event.target.files[0]));
   byId('dropzone').addEventListener('click', () => byId('fileInput').click());
   byId('dropzone').addEventListener('keydown', (event) => {
@@ -1798,7 +2237,11 @@
   byId('fullscreenButton').addEventListener('click', () => {
     const target = byId('canvasWrap');
     const request = target.requestFullscreen || target.webkitRequestFullscreen;
-    if (request) void request.call(target);
+    if (request) Promise.resolve().then(() => request.call(target)).catch((error) => {
+      console.error(error);
+      lastError = A.errorTranslationKey(error);
+      render();
+    });
   });
   window.addEventListener('resize', fitCanvas);
   document.addEventListener('fullscreenchange', fitCanvas);
@@ -1817,7 +2260,7 @@
   };
 
   window.AirGapBigFileApp = Object.freeze({ state });
-  render();
+  applyLanguage();
   fitCanvas();
 })();
 
