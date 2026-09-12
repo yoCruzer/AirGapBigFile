@@ -114,6 +114,54 @@ build inlines application JavaScript, incremental SHA-256, Emscripten glue, and
 the libcimbar WASM into `AirGapBigFile.standalone.html`. Normal runtime works from
 `file://`, needs no server, and performs no network requests.
 
+## Sender v1.1 runtime behavior (protocol remains v1)
+
+Bilingual UI uses a central English / zh-Hans dictionary with interpolation.
+Language changes update document lang and labels without replacing transfer
+state, lifecycle ownership, encoder, burst counters or pacing. Only the manual
+language preference is stored; inaccessible localStorage is nonfatal.
+
+Target profiles are 12, 15 (default), 18, 20, 24 and 30 FPS; redundancy is 1.2×
+(experimental), 1.5×, 2× (default) and 3×. The existing `burstFactor >= 1` formula
+and minimum of 30 frames, including manifest bursts, remain unchanged. FPS and
+redundancy are disabled in sending/paused states. Prepared chunk size remains
+locked. Stop permits configuration for the next run; there is no hot switching.
+
+`render-timing.js` gates RAF callbacks using fractional deadlines. Expired time
+slots are discarded, but each callback submits and advances at most one CIMBAR
+data frame. This preserves 24 FPS pacing on 60 Hz rather than rounding it to
+20 FPS. The last frame is left for a paced interval before the next unit loads
+and initializes; unit loading and encoding can reduce the measured rate.
+Synchronous render errors cancel RAF and stop the transmission controller.
+
+Actual FPS uses intervals between successful browser frame submissions in a
+rolling 2-second window (minimum 1-second sample span). Its denominator extends
+to observation time, including visible stalls/loading. Insufficient or expired
+samples show a dash. Start/resume reset pacing and measurement; pause resets
+samples and does not enter the denominator. It is an observable submission-rate
+proxy, not a guarantee of compositor scanout, unobstructed display, or receiver
+capture. Frame interval is the same window's mean interval, not target interval.
+
+`visibilitychange` pauses only a sending page when hidden, preserving scheduler
+and current burst/encoder ownership. Returning visible never resumes. A distinct
+visibility notice persists until explicit Resume or Stop; a manual pause stays
+manual. RAF also checks hidden state before advancing. Ordinary window occlusion
+may not trigger Page Visibility and requires user attention.
+
+`wake-lock.js` requests screen wake lock on Start/Resume and releases it on
+pause/stop/runtime error. Unsupported API, policy rejection, or external release
+shows a nonfatal notice. Revision ownership releases stale asynchronous requests
+without affecting a newer run. It adds no network dependency and is not a
+substitute for checking OS screen settings.
+
+Burst ETA uses remaining frames; sweep ETA sums a manifest burst for every
+chunk plus all chunk bursts; focus ETA sums one manifest plus the focused chunk.
+They prefer measured FPS and fall back to target FPS. These are full-cycle
+estimates (not remaining pass time), excluding preparation and future load-time
+prediction. There is no receiver completion estimate or Sender KiB/s.
+Manifest schema, raw chunk bytes, ID/hash semantics, 5/10 MiB profile, 120-chunk
+limit, pinned libcimbar/WASM and `_cimbare_configure(68, -1)` are unchanged.
+
 ## Receiver assumptions
 
 AirGapFree detects the manifest, stages chunks received before it, associates
