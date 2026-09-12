@@ -1,0 +1,200 @@
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  root.AirGapBigFile = Object.assign(root.AirGapBigFile || {}, api);
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';
+
+  const TRANSLATIONS = {
+  "en": {
+    "subtitle": "Offline CIMBAR sender for AirGapFree",
+    "choose": "1 · Choose one file",
+    "drop": "Choose or drop a file",
+    "oneFile": "One file per v1 transfer",
+    "local": "Local only — the file is never uploaded or sent through a network.",
+    "prepare": "2 · Prepare",
+    "chooseBegin": "Choose one file to begin",
+    "cancel": "Cancel preparation",
+    "advanced": "Advanced controls",
+    "autoChunk": "Auto · prefer 5 MiB",
+    "send": "3 · Send",
+    "start": "Start sending",
+    "pause": "Pause",
+    "stop": "Stop",
+    "fullscreen": "Fullscreen",
+    "focused": "Focused resend",
+    "focus": "Focus",
+    "sweep": "Return to normal sweep",
+    "focusHint": "Choose only a chunk AirGapFree reports missing. This retransmits it; it does not confirm receipt.",
+    "transmission": "Transmission",
+    "state": "State",
+    "mode": "Mode",
+    "current": "Current item",
+    "pass": "Sweep / pass",
+    "burst": "Current burst",
+    "prepared": "Prepared file",
+    "filename": "Filename",
+    "fileSize": "File size",
+    "hash": "Whole SHA-256",
+    "chunkSize": "Chunk size",
+    "chunkCount": "Chunk count",
+    "encodeBase": "Encode base",
+    "sequenceHint": "Normal sequence: Manifest → Chunk 1 → Manifest → Chunk 2 → … and repeat. Replays are expected; only AirGapFree knows which chunks it has verified.",
+    "burstHint": "Burst factor controls one continuous stream's display length. Returning to a chunk starts its fountain sequence again; it does not continue prior block numbering.",
+    "targetFps": "Target FPS",
+    "factor": "Burst factor",
+    "encoder": "Encoder",
+    "language": "Language",
+    "canvasPlaceholder": "Prepared frames appear here",
+    "factor12": "1.2× · Fast / experimental",
+    "factor15": "1.5× · Balanced",
+    "factor2": "2× · Reliable",
+    "factor3": "3× · Extra redundancy",
+    "controlsHint": "Higher FPS may help, but depends on the browser, display and receiver camera. Lower redundancy is faster per burst but may require more replays in poor conditions.",
+    "actualFps": "Actual FPS",
+    "interval": "Frame interval",
+    "remaining": "Current burst remaining",
+    "estimate": "Estimated sweep duration",
+    "wake": "Screen wake lock",
+    "metricsHint": "Actual FPS measures browser frame submissions during visible sending, not receiver throughput or verified physical display output. Estimates exclude preparation and cannot predict receiver completion.",
+    "resume": "Resume",
+    "loading": "loading…",
+    "manifest": "Manifest",
+    "chunk": "Chunk {index}",
+    "chunkPosition": "Chunk {index} / {count}",
+    "focusMode": "focused resend · chunk {index}",
+    "sweepMode": "normal sweep",
+    "frames": "{done} / {total} frames",
+    "preparingProgress": "Preparing… {done} / {total} · chunk {index}",
+    "preparedComplete": "Preparation complete",
+    "focusEstimate": "Estimated focus cycle",
+    "duration": "~{seconds} s",
+    "durationMinutes": "~{minutes}m {seconds}s",
+    "visibilityNotice": "The page was hidden and sending was automatically paused. Confirm the receiver is ready before resuming.",
+    "wakeNotice": "Unable to keep the screen awake automatically. Please ensure the computer will not turn off its display.",
+    "wakeOff": "Not held",
+    "wakePending": "Requesting…",
+    "wakeHeld": "Active",
+    "wakeUnavailable": "Unavailable",
+    "errorEmpty": "Cannot prepare an empty file.",
+    "errorFilename": "The filename is unsafe for AirGapFree. Please rename the file.",
+    "errorLimit": "File exceeds the v1 limit of 120 × 10 MiB.",
+    "errorRead": "Unable to read the file. Please choose the file again.",
+    "errorEncoder": "The encoder failed. Stop and try again.",
+    "errorGeneric": "Operation failed. Please retry; technical details are in the browser console.",
+    "status.idle": "idle",
+    "status.preparing": "preparing",
+    "status.ready": "ready",
+    "status.sending": "sending",
+    "status.paused": "paused",
+    "status.error": "error"
+  },
+  "zh-Hans": {
+    "subtitle": "适用于 AirGapFree 的离线 CIMBAR 发送端",
+    "choose": "1 · 选择一个文件",
+    "drop": "选择或拖入文件",
+    "oneFile": "v1 每次传输一个文件",
+    "local": "仅在本机处理，文件不会上传或通过网络发送。",
+    "prepare": "2 · 准备",
+    "chooseBegin": "请选择一个文件开始",
+    "cancel": "取消准备",
+    "advanced": "高级设置",
+    "autoChunk": "自动 · 优先 5 MiB",
+    "send": "3 · 发送",
+    "start": "开始发送",
+    "pause": "暂停",
+    "stop": "停止",
+    "fullscreen": "全屏",
+    "focused": "定向重传",
+    "focus": "定向发送",
+    "sweep": "返回正常轮播",
+    "focusHint": "请选择 AirGapFree 提示缺失的分块。这只会重传该分块，不代表已确认接收。",
+    "transmission": "发送信息",
+    "state": "状态",
+    "mode": "模式",
+    "current": "当前项目",
+    "pass": "轮播轮次",
+    "burst": "当前连续帧组",
+    "prepared": "已准备文件",
+    "filename": "文件名",
+    "fileSize": "文件大小",
+    "hash": "完整文件 SHA-256",
+    "chunkSize": "分块大小",
+    "chunkCount": "分块数量",
+    "encodeBase": "编码基值",
+    "sequenceHint": "正常顺序：清单 → 分块 1 → 清单 → 分块 2 → …，循环发送。重复发送是正常行为，只有 AirGapFree 知道哪些分块已通过校验。",
+    "burstHint": "冗余度控制一次连续编码流的展示长度。重新发送分块会从头开始其喷泉编码序列，不会继续之前的块编号。",
+    "targetFps": "目标 FPS",
+    "factor": "冗余度",
+    "encoder": "编码器",
+    "language": "语言",
+    "canvasPlaceholder": "编码画面将在此显示",
+    "factor12": "1.2× · 快速 / 实验性",
+    "factor15": "1.5× · 平衡",
+    "factor2": "2× · 稳定",
+    "factor3": "3× · 强冗余",
+    "controlsHint": "更高 FPS 的实际效果受浏览器、显示器和接收端相机影响。更低冗余度可缩短每次发送，但识别条件较差时可能需要更多重传。",
+    "actualFps": "实际 FPS",
+    "interval": "帧间隔",
+    "remaining": "当前帧组剩余时间",
+    "estimate": "预计一轮轮播时长",
+    "wake": "屏幕唤醒锁",
+    "metricsHint": "实际 FPS 测量可见发送期间浏览器提交的帧率，并非接收端吞吐或经验证的屏幕输出。时长估计不含准备过程，也不能预测接收完成时间。",
+    "resume": "继续",
+    "loading": "加载中…",
+    "manifest": "清单",
+    "chunk": "分块 {index}",
+    "chunkPosition": "分块 {index} / {count}",
+    "focusMode": "定向重传 · 分块 {index}",
+    "sweepMode": "正常轮播",
+    "frames": "{done} / {total} 帧",
+    "preparingProgress": "准备中… {done} / {total} · 分块 {index}",
+    "preparedComplete": "准备完成",
+    "focusEstimate": "预计定向循环时长",
+    "duration": "约 {seconds} 秒",
+    "durationMinutes": "约 {minutes} 分 {seconds} 秒",
+    "visibilityNotice": "页面曾进入后台，发送已自动暂停。请确认接收端已准备好后继续发送。",
+    "wakeNotice": "无法自动保持屏幕唤醒，请确保电脑不会自动熄屏。",
+    "wakeOff": "未持有",
+    "wakePending": "请求中…",
+    "wakeHeld": "已启用",
+    "wakeUnavailable": "不可用",
+    "errorEmpty": "无法准备空文件。",
+    "errorFilename": "文件名不符合 AirGapFree 安全规则，请重命名文件。",
+    "errorLimit": "文件超出 v1 的 120 × 10 MiB 上限。",
+    "errorRead": "无法读取文件，请重新选择文件。",
+    "errorEncoder": "编码器运行失败，请停止后重试。",
+    "errorGeneric": "操作失败，请重试；技术详情见浏览器控制台。",
+    "status.idle": "空闲",
+    "status.preparing": "准备中",
+    "status.ready": "就绪",
+    "status.sending": "发送中",
+    "status.paused": "已暂停",
+    "status.error": "错误"
+  }
+};
+  const LANGUAGE_KEY = 'airgapBigFile.language';
+
+  function detectLanguage(preference, browserLanguage) {
+    if (preference === 'en' || preference === 'zh-Hans') return preference;
+    return /^zh(?:-|$)/i.test(browserLanguage || '') ? 'zh-Hans' : 'en';
+  }
+
+  function translate(language, key, values = {}) {
+    const template = TRANSLATIONS[language][key];
+    if (template === undefined) throw new Error(`Missing translation: ${key}`);
+    return template.replace(/\{(\w+)\}/g, (_match, name) => String(values[name]));
+  }
+
+  function errorTranslationKey(error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/empty file/.test(message)) return 'errorEmpty';
+    if (/filename.*safe/.test(message)) return 'errorFilename';
+    if (/exceeds.*limit/.test(message)) return 'errorLimit';
+    if (/Short ranged read|NotReadableError|NotFoundError/.test(message + ' ' + (error && error.name))) return 'errorRead';
+    if (/libcimbar/.test(message)) return 'errorEncoder';
+    return 'errorGeneric';
+  }
+
+  return { TRANSLATIONS, LANGUAGE_KEY, detectLanguage, translate, errorTranslationKey };
+});

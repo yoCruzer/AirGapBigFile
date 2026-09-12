@@ -48,7 +48,13 @@ def main() -> int:
         "AIRGAP INLINE BEGIN: src/preparation.js",
         "AIRGAP INLINE BEGIN: src/scheduler.js",
         "AIRGAP INLINE BEGIN: src/unit-lifecycle.js",
+        "AIRGAP INLINE BEGIN: src/i18n.js",
+        "AIRGAP INLINE BEGIN: src/render-timing.js",
+        "AIRGAP INLINE BEGIN: src/wake-lock.js",
         "AIRGAP INLINE BEGIN: src/app.js",
+        "简体中文",
+        "Actual FPS",
+        "发送已自动暂停",
         "Module.wasmBinary",
     ):
         if required not in html:

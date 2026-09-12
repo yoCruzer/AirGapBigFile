@@ -7,7 +7,7 @@
     "test": "node --test test/*.test.js",
     "build": "python3 scripts/build-standalone.py",
     "verify": "python3 scripts/verify-standalone.py",
-    "check": "npm test && node --check src/app.js && npm run build && npm run verify"
+    "check": "npm test && node --check src/app.js && node --check src/i18n.js && node --check src/render-timing.js && node --check src/wake-lock.js && npm run build && npm run verify"
   },
   "engines": {
     "node": ">=20"

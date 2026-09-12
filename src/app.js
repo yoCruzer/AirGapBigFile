@@ -3,6 +3,10 @@
 
   const A = window.AirGapBigFile;
   const state = A.createSenderState();
+  let preference = null;
+  try { preference = localStorage.getItem(A.LANGUAGE_KEY); } catch (_) { /* Storage is optional. */ }
+  let language = A.detectLanguage(preference, navigator.language);
+  const t = (key, values) => A.translate(language, key, values);
   let controller = null;
   let wasmReady = false;
   let prepareAbort = null;
@@ -13,6 +17,14 @@
   let framesInBurstTarget = 0;
   let lastError = '';
   let idealRatio = 1;
+  let timing = A.createRenderTiming(state.fps);
+  let pauseReason = null;
+  let wakeStatus = 'wakeOff';
+  let lastMetricsRender = 0;
+  const wakeLock = A.createScreenWakeLock(navigator.wakeLock, (status) => {
+    wakeStatus = status;
+    render();
+  });
 
   const byId = (id) => document.getElementById(id);
 
@@ -27,8 +39,8 @@
 
   function currentItemLabel() {
     if (!state.currentItem) return '—';
-    if (state.currentItem.kind === A.ITEM.MANIFEST) return 'Manifest';
-    return `Chunk ${state.currentItem.index + 1} / ${state.chunks.length}`;
+    if (state.currentItem.kind === A.ITEM.MANIFEST) return t('manifest');
+    return t('chunkPosition', { index: state.currentItem.index + 1, count: state.chunks.length });
   }
 
   function setText(id, value) { byId(id).textContent = value; }
@@ -40,25 +52,52 @@
     state.chunks.forEach((chunk) => {
       const option = document.createElement('option');
       option.value = String(chunk.index);
-      option.textContent = `Chunk ${chunk.index + 1}`;
+      option.textContent = t('chunk', { index: chunk.index + 1 });
       select.append(option);
     });
     if (selected && Number(selected) < state.chunks.length) select.value = selected;
   }
 
+  function formatDuration(seconds) {
+    const rounded = Math.ceil(seconds);
+    return rounded < 60 ? t('duration', { seconds: rounded })
+      : t('durationMinutes', { minutes: Math.floor(rounded / 60), seconds: rounded % 60 });
+  }
+
   function render() {
     const prepared = Boolean(state.manifest);
     const preparing = state.status === A.STATUS.PREPARING;
-    const active = state.status === A.STATUS.SENDING || state.status === A.STATUS.PAUSED;
+    const active = A.activeParametersLocked(state.status);
 
-    setText('stateValue', state.status);
-    setText('wasmValue', wasmReady ? 'ready' : 'loading…');
+    const targetFps = active ? state.fps : Number(byId('fps').value);
+    const factor = active ? state.burstFactor : Number(byId('burstFactor').value);
+    const measured = state.status === A.STATUS.SENDING ? timing.measurement(performance.now()) : null;
+    const estimateFps = measured ? measured.fps : targetFps;
+    setText('targetFpsValue', String(targetFps));
+    setText('actualFpsValue', measured ? measured.fps.toFixed(1) : '—');
+    setText('intervalValue', measured ? `${measured.interval.toFixed(1)} ms` : '—');
+    setText('remainingValue', streamReady
+      ? formatDuration(Math.max(0, framesInBurstTarget - framesInBurst) / estimateFps) : '—');
+    setText('estimateLabel', t(state.mode === A.MODE.FOCUS ? 'focusEstimate' : 'estimate'));
+    setText('estimateValue', prepared ? formatDuration(A.framesForCycle(
+      state.manifestBytes.length, state.chunks, factor,
+      state.mode === A.MODE.FOCUS ? state.focusedChunk : null) / estimateFps) : '—');
+    setText('wakeValue', t(wakeStatus));
+    byId('visibilityNotice').hidden = pauseReason !== 'visibility';
+    setText('visibilityNotice', t('visibilityNotice'));
+    byId('wakeNotice').hidden = wakeStatus !== 'wakeUnavailable';
+    setText('wakeNotice', t('wakeNotice'));
+    byId('fps').disabled = active;
+    byId('burstFactor').disabled = active;
+
+    setText('stateValue', t('status.' + state.status));
+    setText('wasmValue', t(wasmReady ? 'status.ready' : 'loading'));
     setText('modeValue', state.mode === A.MODE.FOCUS
-      ? `focused resend · chunk ${state.focusedChunk + 1}`
-      : 'normal sweep');
+      ? t('focusMode', { index: state.focusedChunk + 1 })
+      : t('sweepMode'));
     setText('currentValue', currentItemLabel());
     setText('passValue', prepared ? String(state.pass) : '—');
-    setText('burstValue', streamReady ? `${framesInBurst} / ${framesInBurstTarget} frames` : '—');
+    setText('burstValue', streamReady ? t('frames', { done: framesInBurst, total: framesInBurstTarget }) : '—');
     setText('filenameValue', state.file ? state.file.name : '—');
     setText('fileSizeValue', state.file ? formatBytes(state.file.size) : '—');
     setText('hashValue', prepared ? state.manifest.sha256 : '—');
@@ -69,12 +108,12 @@
     const pct = preparing ? state.preparation.percentage : prepared ? 100 : 0;
     byId('prepareBar').style.width = `${pct}%`;
     setText('prepareLabel', preparing
-      ? `Preparing… ${formatBytes(state.preparation.hashedBytes)} / ${formatBytes(state.preparation.totalBytes)} · chunk ${state.preparation.currentChunk}`
-      : prepared ? 'Preparation complete' : 'Choose one file to begin');
+      ? t('preparingProgress', { done: formatBytes(state.preparation.hashedBytes), total: formatBytes(state.preparation.totalBytes), index: state.preparation.currentChunk })
+      : t(prepared ? 'preparedComplete' : 'chooseBegin'));
 
     byId('startButton').disabled = !prepared || !wasmReady || state.status !== A.STATUS.READY;
     byId('pauseButton').disabled = !active;
-    byId('pauseButton').textContent = state.status === A.STATUS.PAUSED ? 'Resume' : 'Pause';
+    byId('pauseButton').textContent = t(state.status === A.STATUS.PAUSED ? 'resume' : 'pause');
     byId('stopButton').disabled = !active;
     byId('cancelPrepareButton').hidden = !preparing;
     byId('fileInput').disabled = preparing || active;
@@ -84,7 +123,7 @@
     byId('sweepButton').disabled = !prepared || preparing || state.mode === A.MODE.SWEEP;
     byId('fullscreenButton').disabled = !streamReady;
     byId('errorBox').hidden = !lastError;
-    setText('errorBox', lastError);
+    setText('errorBox', lastError ? t(lastError) : '');
     byId('canvasWrap').classList.toggle('active', active);
   }
 
@@ -117,7 +156,8 @@
         if (state.status === A.STATUS.PREPARING) A.cancelPreparation(state);
       } else {
         if (state.status === A.STATUS.PREPARING) A.failPreparation(state, error);
-        lastError = error instanceof Error ? error.message : String(error);
+        console.error(error);
+        lastError = A.errorTranslationKey(error);
       }
     } finally {
       prepareAbort = null;
@@ -206,39 +246,62 @@
   }
 
   function clearRenderTimer() {
-    if (renderTimer !== null) clearTimeout(renderTimer);
+    if (renderTimer !== null) cancelAnimationFrame(renderTimer);
     renderTimer = null;
   }
 
   function scheduleFrame() {
     clearRenderTimer();
-    if (state.status !== A.STATUS.SENDING || !streamReady) return;
-    const interval = Math.floor(1000 / state.fps);
-    renderTimer = setTimeout(renderFrame, interval);
+    if (state.status !== A.STATUS.SENDING || !streamReady || document.hidden) return;
+    renderTimer = requestAnimationFrame(renderFrame);
   }
 
   function renderFrame() {
     renderTimer = null;
+    if (A.shouldPauseForVisibility(state.status, document.hidden)) { pauseSending('visibility'); return; }
     if (state.status !== A.STATUS.SENDING || !streamReady) return;
-    Module._cimbare_render();
-    Module._cimbare_next_frame(false);
-    framesInBurst += 1;
-    if (framesInBurst >= framesInBurstTarget) {
-      void advanceCurrentUnit().then((ready) => {
-        if (ready && state.status === A.STATUS.SENDING) scheduleFrame();
-      }).catch(handleRuntimeError);
-      return;
+    const now = performance.now();
+    try {
+      if (timing.due(now)) {
+        // Leave the final frame on the canvas for a full paced interval before
+        // loading/initializing the next unit, which can change the canvas.
+        if (framesInBurst >= framesInBurstTarget) {
+          void advanceCurrentUnit().then((ready) => {
+            if (ready) scheduleFrame();
+          }).catch(handleRuntimeError);
+          return;
+        }
+        Module._cimbare_render();
+        Module._cimbare_next_frame(false);
+        framesInBurst += 1;
+        timing.record(performance.now());
+      }
+      if (now - lastMetricsRender >= 250) { lastMetricsRender = now; render(); }
+      scheduleFrame();
+    } catch (error) {
+      handleRuntimeError(error);
     }
-    if (framesInBurst % state.fps === 0) render();
-    scheduleFrame();
+  }
+
+  function pauseSending(reason) {
+    clearRenderTimer();
+    controller.pause();
+    pauseReason = reason;
+    timing.reset();
+    void wakeLock.release();
+    render();
   }
 
   function handleRuntimeError(error) {
     clearRenderTimer();
+    void wakeLock.release();
+    pauseReason = null;
+    timing.reset();
     if (unitLifecycle) unitLifecycle.invalidate();
     unitLifecycle = null;
     streamReady = false;
-    lastError = error instanceof Error ? error.message : String(error);
+    console.error(error);
+    lastError = A.errorTranslationKey(error);
     if (controller && (state.status === A.STATUS.SENDING || state.status === A.STATUS.PAUSED)) {
       controller.stop();
     }
@@ -246,10 +309,14 @@
   }
 
   async function startSending() {
+    if (document.hidden) return;
     lastError = '';
     state.fps = Number(byId('fps').value);
     state.burstFactor = Number(byId('burstFactor').value);
     controller.start();
+    pauseReason = null;
+    timing = A.createRenderTiming(state.fps);
+    void wakeLock.acquire();
     unitLifecycle = createUnitLifecycle();
     render();
     try {
@@ -261,13 +328,14 @@
 
   async function togglePause() {
     if (state.status === A.STATUS.SENDING) {
-      clearRenderTimer();
-      controller.pause();
-      render();
+      pauseSending('manual');
       return;
     }
-    if (state.status !== A.STATUS.PAUSED) return;
+    if (state.status !== A.STATUS.PAUSED || document.hidden) return;
     controller.resume();
+    pauseReason = null;
+    timing.reset();
+    void wakeLock.acquire();
     render();
     try {
       if (!streamReady && !(await ensureCurrentUnit())) return;
@@ -279,6 +347,9 @@
 
   function stopSending() {
     clearRenderTimer();
+    void wakeLock.release();
+    pauseReason = null;
+    timing.reset();
     if (unitLifecycle) unitLifecycle.invalidate();
     unitLifecycle = null;
     streamReady = false;
@@ -314,6 +385,28 @@
     }
   }
 
+  function applyLanguage() {
+    document.documentElement.lang = language;
+    byId('language').value = language;
+    document.querySelectorAll('[data-i18n]').forEach((element) => {
+      element.textContent = t(element.dataset.i18n);
+    });
+    byId('canvasWrap').dataset.placeholder = t('canvasPlaceholder');
+    renderFocusOptions();
+    render();
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (A.shouldPauseForVisibility(state.status, document.hidden)) pauseSending('visibility');
+  });
+  for (const id of ['fps', 'burstFactor']) {
+    byId(id).addEventListener('change', () => { timing.reset(); render(); });
+  }
+  byId('language').addEventListener('change', () => {
+    language = byId('language').value;
+    try { localStorage.setItem(A.LANGUAGE_KEY, language); } catch (_) { /* Storage is optional. */ }
+    applyLanguage();
+  });
   byId('fileInput').addEventListener('change', (event) => void prepareFile(event.target.files[0]));
   byId('dropzone').addEventListener('click', () => byId('fileInput').click());
   byId('dropzone').addEventListener('keydown', (event) => {
@@ -335,7 +428,11 @@
   byId('fullscreenButton').addEventListener('click', () => {
     const target = byId('canvasWrap');
     const request = target.requestFullscreen || target.webkitRequestFullscreen;
-    if (request) void request.call(target);
+    if (request) Promise.resolve().then(() => request.call(target)).catch((error) => {
+      console.error(error);
+      lastError = A.errorTranslationKey(error);
+      render();
+    });
   });
   window.addEventListener('resize', fitCanvas);
   document.addEventListener('fullscreenchange', fitCanvas);
@@ -354,6 +451,6 @@
   };
 
   window.AirGapBigFileApp = Object.freeze({ state });
-  render();
+  applyLanguage();
   fitCanvas();
 })();

@@ -37,3 +37,14 @@ test('production preparation has no whole-file file.arrayBuffer call', () => {
   assert.doesNotMatch(preparation, /\bfile\.arrayBuffer\s*\(/);
   assert.match(preparation, /file\.slice\s*\(/);
 });
+
+test('performance controls expose exactly the requested profiles and defaults', () => {
+  function options(id) {
+    const block = html.match(new RegExp(`<select id="${id}">([\\s\\S]*?)</select>`))[1];
+    return [...block.matchAll(/<option value="([^"]+)"([^>]*)>/g)];
+  }
+  assert.deepEqual(options('fps').map((m) => m[1]), ['12', '15', '18', '20', '24', '30']);
+  assert.equal(options('fps').find((m) => m[2].includes('selected'))[1], '15');
+  assert.deepEqual(options('burstFactor').map((m) => m[1]), ['1.2', '1.5', '2', '3']);
+  assert.equal(options('burstFactor').find((m) => m[2].includes('selected'))[1], '2');
+});
