@@ -132,7 +132,17 @@
     state.focusedChunk = null;
   }
 
+  function activeParametersLocked(status) {
+    return status === STATUS.SENDING || status === STATUS.PAUSED;
+  }
+
+  function shouldPauseForVisibility(status, hidden) {
+    return status === STATUS.SENDING && hidden;
+  }
+
   return {
+    activeParametersLocked,
+    shouldPauseForVisibility,
     STATUS,
     MODE,
     createSenderState,

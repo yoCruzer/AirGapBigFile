@@ -15,6 +15,12 @@
     return Math.max(30, Math.ceil((byteCount / ESTIMATED_BYTES_PER_FRAME) * burstFactor));
   }
 
+  function framesForCycle(manifestBytes, chunks, burstFactor, focusedChunk = null) {
+    const manifestFrames = framesForBurst(manifestBytes, burstFactor);
+    const selected = focusedChunk === null ? chunks : [chunks[focusedChunk]];
+    return selected.reduce((total, chunk) => total + manifestFrames + framesForBurst(chunk.size, burstFactor), 0);
+  }
+
   function createScheduler(chunkCount) {
     if (!Number.isInteger(chunkCount) || chunkCount < 1) {
       throw new RangeError('chunkCount must be a positive integer');
@@ -85,5 +91,5 @@
     return { nextItem, focus, sweep, pause, resume, snapshot };
   }
 
-  return { ITEM, SCHEDULER_MODE: MODE, ESTIMATED_BYTES_PER_FRAME, framesForBurst, createScheduler };
+  return { ITEM, SCHEDULER_MODE: MODE, ESTIMATED_BYTES_PER_FRAME, framesForBurst, framesForCycle, createScheduler };
 });
