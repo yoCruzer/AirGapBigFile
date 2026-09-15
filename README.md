@@ -4,15 +4,31 @@ English | [简体中文](README.zh-Hans.md)
 
 AirGap BigFile is a browser-based optical sender for large files. It prepares one
 local file, renders a sequence of CIMBAR frames, and is designed to interoperate
-with the native iOS AirGapFree receiver.
+with the native iOS AirGapFree receiver. It is the recommended Sender for
+AirGapFree, which is a separate project.
 
-The selected file stays on this computer. The application has no upload path and
-the distributable runs without a network connection.
+Selected files are processed locally in the browser: selection, hashing, encoding
+and optical sending do not upload file contents to a server. The online page
+needs network access to load; the downloaded standalone HTML can run offline.
 
 ## Use
 
-1. Download `AirGapBigFile.standalone.html`.
-2. Double-click it (a `file://` URL is supported).
+### Online
+
+Open the [GitHub Pages Sender](https://yocruzer.github.io/AirGapBigFile/) on your
+computer. Page loading requires network access; your selected file stays local.
+
+### Offline
+
+Download [AirGapBigFile-v1.1.0.standalone.html](https://github.com/yoCruzer/AirGapBigFile/releases/download/v1.1.0/AirGapBigFile-v1.1.0.standalone.html)
+from [GitHub Releases](https://github.com/yoCruzer/AirGapBigFile/releases/tag/v1.1.0).
+After download, double-click it (`file://` is supported) to use it offline.
+Download `SHA256SUMS.txt` alongside it and verify with `shasum -a 256 -c SHA256SUMS.txt`.
+
+### Send a file
+
+1. Open the online Sender or downloaded standalone.
+2. Keep the recommended stable defaults: **15 FPS / 2×**.
 3. Choose one file and wait for preparation to finish.
 4. Start sending and scan the animated code with AirGapFree.
 5. If AirGapFree reports a missing chunk, choose that number under **Focused
@@ -34,7 +50,8 @@ Advanced controls offer 12 / **15 (default)** / 18 / 20 / 24 / 30 FPS and
 1.2× (fast / experimental) / 1.5× / **2× (default)** / 3× burst factors.
 FPS and redundancy are locked while sending or paused; Stop unlocks them.
 Prepared chunk size stays locked. Lower redundancy shortens each burst but can
-require more replays; higher FPS depends on browser, display and receiver camera.
+require more replays; high-FPS profiles are experimental and depend on browser,
+display and receiver camera.
 Neither setting is a performance or reliability promise.
 
 Rendering uses requestAnimationFrame with fractional target deadlines, submitting
@@ -86,9 +103,13 @@ repository and are not modified here.
 
 ## Status
 
-Browser acceptance is **MANUAL BROWSER ACCEPTANCE PENDING**.
-The standalone candidate is locally testable. Real Mac-screen-to-iPhone optical
-acceptance and performance tuning are **PENDING DEVICE TEST**.
+User-reported real-device basic E2E is **PASS** for candidate `140c2d1`: the
+Sender sent successfully and AirGapFree received successfully. The public
+distribution preserves that Sender runtime. A broad device/performance matrix
+has not been completed; experimental profiles remain device-dependent.
+
+For vulnerabilities, use [private security reporting](SECURITY.md). Ordinary
+bugs and compatibility reports belong in [Issues](https://github.com/yoCruzer/AirGapBigFile/issues).
 
 ## License
 
