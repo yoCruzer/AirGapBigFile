@@ -1,0 +1,41 @@
+name: Sender validation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run protocol, hashing, preparation, scheduler, and UI tests
+        run: npm test
+
+      - name: Check browser application syntax
+        run: node --check src/app.js
+
+      - name: Rebuild standalone artifact
+        run: python3 scripts/build-standalone.py
+
+      - name: Verify standalone artifact
+        run: python3 scripts/verify-standalone.py
+
+      - name: Require committed artifact to be current
+        run: git diff --exit-code -- AirGapBigFile.standalone.html
+
+      - name: Check patch whitespace
+        run: git diff --check

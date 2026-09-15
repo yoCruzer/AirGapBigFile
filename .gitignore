@@ -1,5 +1,4 @@
-# Test samples
-test/
+# Generated test samples
 samples/
 *.test.bin
 *.partXX.bin

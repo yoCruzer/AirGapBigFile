@@ -48,8 +48,7 @@ License:      BSD 3-Clause License (Copyright (c) 2018 Christopher A. Taylor)
 License text: vendor/LICENSE-wirehair
 
 Component:    CameraFileCopy / CFC (https://github.com/sz3/cfc)
-Used as:      Recommended Android receiver app (NOT vendored in this repo)
+Used as:      Historical upstream interoperability target (NOT vendored here)
 License:      MIT License
-Notice:       CFC is the recommended decoder for cimbar-bigfile transmissions.
-              Users install it separately from F-Droid / Google Play / GitHub
-              Releases. No CFC code is redistributed by this project.
+Notice:       No CFC code is redistributed by this project. AirGap BigFile's
+              active product target is the separate AirGapFree iOS receiver.

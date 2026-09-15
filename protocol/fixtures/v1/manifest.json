@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "tool": "cimbar-bigfile",
+  "filename": "fixture.bin",
+  "total_size": 17,
+  "sha256": "623154896e8320c01ce5cde37a917cf3df1884690f32d3012b462484c8826285",
+  "chunk_size": 9,
+  "chunk_count": 2,
+  "encode_id_base": 65530,
+  "chunks": [
+    {
+      "index": 0,
+      "size": 9,
+      "sha256": "e8171c6244e4ee58bc162be05d326c28cb8dbb0ad766c1263af98937c254a2f4"
+    },
+    {
+      "index": 1,
+      "size": 8,
+      "sha256": "af6377eb43ee89cb3cb5917e76d0d3fe1d5eba0759051b819878add118bc5ea4"
+    }
+  ]
+}
