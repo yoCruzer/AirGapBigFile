@@ -1,0 +1,58 @@
+name: Deploy Sender to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main' && github.event.repository.private == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test, rebuild and verify standalone
+        run: npm run check
+      - name: Require committed standalone to be current
+        run: git diff --exit-code -- AirGapBigFile.standalone.html
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Prepare the verified Sender
+        run: |
+          mkdir -p "$RUNNER_TEMP/pages"
+          cp AirGapBigFile.standalone.html "$RUNNER_TEMP/pages/index.html"
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{ runner.temp }}/pages
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
