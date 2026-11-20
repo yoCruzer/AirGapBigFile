@@ -20,6 +20,11 @@ lighting and receiver build. Use a fresh receiver transfer state for each trial
 so already verified chunks do not inflate the result. Repeat each profile at
 least three times if practical; record failures as well as successes.
 
+For the experimental short-cycle option, pair off/on trials at the same FPS and
+burst factor. Use both compressible data and already-compressed data. Include a
+short final chunk. Record the first verified completion time, missing chunks and
+focused retries in each arm.
+
 Stop the Sender before changing FPS or redundancy. Start timing at Start sending
 (after preparation), and end only when AirGapFree reports whole-file verification
 and completion. Record interruptions, manual pauses and focused resend in the
@@ -34,7 +39,7 @@ Do not infer completion from Sender pass count or its estimated cycle duration.
 | Display refresh rate/brightness; distance/lighting | |
 | Receiver device/build (iPhone 16 / Build 9) | |
 | Sender target FPS; observed actual FPS range | |
-| Burst factor; chunk-size setting | |
+| Burst factor; chunk-size setting; shorten repeats on/off | |
 | File size in bytes; whole SHA-256 | |
 | Start time; Receiver complete time; elapsed seconds | |
 | Success/failure and failure reason | |

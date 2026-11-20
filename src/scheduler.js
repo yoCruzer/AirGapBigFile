@@ -9,10 +9,12 @@
   const MODE = Object.freeze({ SWEEP: 'sweep', FOCUS: 'focus' });
   const ESTIMATED_BYTES_PER_FRAME = 7500;
 
+  const MIN_BURST_FRAMES = 30;
+
   function framesForBurst(byteCount, burstFactor) {
     if (!Number.isSafeInteger(byteCount) || byteCount < 0) throw new RangeError('byteCount must be non-negative');
     if (!Number.isFinite(burstFactor) || burstFactor < 1) throw new RangeError('burstFactor must be at least 1');
-    return Math.max(30, Math.ceil((byteCount / ESTIMATED_BYTES_PER_FRAME) * burstFactor));
+    return Math.max(MIN_BURST_FRAMES, Math.ceil((byteCount / ESTIMATED_BYTES_PER_FRAME) * burstFactor));
   }
 
   function framesForCycle(manifestBytes, chunks, burstFactor, focusedChunk = null) {
@@ -91,5 +93,5 @@
     return { nextItem, focus, sweep, pause, resume, snapshot };
   }
 
-  return { ITEM, SCHEDULER_MODE: MODE, ESTIMATED_BYTES_PER_FRAME, framesForBurst, framesForCycle, createScheduler };
+  return { ITEM, MIN_BURST_FRAMES, SCHEDULER_MODE: MODE, ESTIMATED_BYTES_PER_FRAME, framesForBurst, framesForCycle, createScheduler };
 });

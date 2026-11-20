@@ -19,11 +19,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Check out release source
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
       - name: Use Node.js 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
       - name: Test, rebuild and verify standalone
@@ -31,13 +31,13 @@ jobs:
       - name: Require committed standalone to be current
         run: git diff --exit-code -- AirGapBigFile.standalone.html
       - name: Configure Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - name: Prepare the verified Sender
         run: |
           mkdir -p "$RUNNER_TEMP/pages"
           cp AirGapBigFile.standalone.html "$RUNNER_TEMP/pages/index.html"
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
           path: ${{ runner.temp }}/pages
 
@@ -55,4 +55,4 @@ jobs:
     steps:
       - name: Deploy Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

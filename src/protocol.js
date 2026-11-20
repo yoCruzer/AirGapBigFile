@@ -12,7 +12,7 @@
   const CHUNK_SIZE_10_MIB = 10 * 1024 * 1024;
   const PROFILE_CHUNK_SIZES = Object.freeze([CHUNK_SIZE_5_MIB, CHUNK_SIZE_10_MIB]);
   const SHA256_RE = /^[0-9a-f]{64}$/;
-  const CONTROL_CHARACTER_RE = /[\p{Cc}\p{Cf}]/u;
+  const UNSAFE_CHARACTER_RE = /[\p{Cc}\p{Cf}\p{Cs}]/u;
 
   function assertSafeNonNegative(value, name) {
     if (!Number.isSafeInteger(value) || value < 0) {
@@ -33,7 +33,7 @@
       filename !== '..' &&
       !filename.includes('/') &&
       !filename.includes('\\') &&
-      !CONTROL_CHARACTER_RE.test(filename);
+      !UNSAFE_CHARACTER_RE.test(filename);
   }
 
   function assertSafeLogicalFilename(filename) {
@@ -83,7 +83,7 @@
     assertSafeNonNegative(base, 'base');
     assertSafeNonNegative(logicalOffset, 'logicalOffset');
     if (base > 0xFFFF) throw new RangeError('base must fit unsigned 16 bits');
-    return (base + logicalOffset) & 0xFFFF;
+    return (base + (logicalOffset & 0xFFFF)) & 0xFFFF;
   }
 
   function wireId(base, logicalOffset) {
@@ -102,7 +102,7 @@
     if (manifest.tool !== MANIFEST_TOOL) throw new Error('unsupported manifest tool');
     assertSafeLogicalFilename(manifest.filename);
     assertSafePositive(manifest.total_size, 'total_size');
-    if (!SHA256_RE.test(manifest.sha256)) throw new Error('invalid whole-file SHA-256');
+    if (typeof manifest.sha256 !== 'string' || !SHA256_RE.test(manifest.sha256)) throw new Error('invalid whole-file SHA-256');
     if (!Number.isSafeInteger(manifest.chunk_size) || manifest.chunk_size <= 0) {
       throw new Error('chunk_size must be a positive safe integer');
     }
@@ -122,7 +122,7 @@
     }
 
     let sizeSum = 0;
-    manifest.chunks.forEach((chunk, index) => {
+    for (const [index, chunk] of manifest.chunks.entries()) {
       if (!chunk || chunk.index !== index) throw new Error(`chunk ${index} index mismatch`);
       if (!Number.isSafeInteger(chunk.size) || chunk.size <= 0 || chunk.size > manifest.chunk_size) {
         throw new Error(`chunk ${index} has invalid size`);
@@ -130,9 +130,9 @@
       if (index < manifest.chunk_count - 1 && chunk.size !== manifest.chunk_size) {
         throw new Error(`chunk ${index} must have the declared chunk_size`);
       }
-      if (!SHA256_RE.test(chunk.sha256)) throw new Error(`chunk ${index} has invalid SHA-256`);
+      if (typeof chunk.sha256 !== 'string' || !SHA256_RE.test(chunk.sha256)) throw new Error(`chunk ${index} has invalid SHA-256`);
       sizeSum += chunk.size;
-    });
+    }
     if (sizeSum !== manifest.total_size) throw new Error('chunk metadata size does not match total_size');
     return manifest;
   }

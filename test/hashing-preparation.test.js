@@ -120,3 +120,52 @@ test('preparation rejects an unsafe filename before hashing', async () => {
   await assert.rejects(preparation.prepareFileByRanges(file, { encodeIdBase: 1 }), /filename.*safe/);
   assert.equal(reads, 0);
 });
+
+test('reloaded ranges match the prepared digest and reject drift, truncation and invalid bounds', async () => {
+  const bytes = Buffer.from('original');
+  let current = bytes;
+  const file = { name: 'sample', size: bytes.length, slice(start, end) { return new Blob([current.subarray(start, end)]); } };
+  const result = await preparation.prepareFileByRanges(file, { encodeIdBase: 7 });
+  const descriptor = result.chunks[0];
+  assert.equal(result.manifest.sha256, crypto.createHash('sha256').update(bytes).digest('hex'));
+  assert.deepEqual(Buffer.from(await preparation.loadChunk(file, descriptor)), bytes);
+  current = Buffer.from('modified');
+  await assert.rejects(preparation.loadChunk(file, descriptor), /digest mismatch/);
+  current = Buffer.from('short');
+  await assert.rejects(preparation.loadChunk(file, descriptor), /Short ranged read/);
+  for (const bounds of [{ offset: -1 }, { size: 0 }, { offset: 1 }]) {
+    await assert.rejects(preparation.loadChunk(file, { ...descriptor, ...bounds }), /descriptor/);
+  }
+});
+
+test('browser fallback without SubtleCrypto matches independent whole and per-chunk hashes', async () => {
+  const vm = require('node:vm');
+  const api = { ...protocol };
+  const ctx = { AirGapBigFile: api, sha256, TextEncoder, Uint8Array };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/preparation.js'), 'utf8'), ctx);
+  const source = Buffer.alloc(protocol.CHUNK_SIZE_5_MIB + 5, 83);
+  const file = new Blob([source]);
+  file.name = 'offline.bin';
+  const result = await ctx.AirGapBigFile.prepareFileByRanges(file, { encodeIdBase: 4, yieldControl() {} });
+  const digest = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
+  assert.equal(result.manifest.sha256, digest(source));
+  for (const chunk of result.chunks) {
+    assert.equal(chunk.sha256, digest(source.subarray(chunk.offset, chunk.offset + chunk.size)));
+    assert.equal(digest(await ctx.AirGapBigFile.loadChunk(file, chunk)), chunk.sha256);
+  }
+});
+
+test('10 MiB profile preserves ordered chunk identity across rereads and a replay', async () => {
+  const size = protocol.CHUNK_SIZE_10_MIB;
+  const file = new File([Buffer.alloc(size, 17), Buffer.of(22)], 'large-synthetic.bin');
+  const result = await preparation.prepareFileByRanges(file, { chunkSize: size, encodeIdBase: 65535, yieldControl() {} });
+  const digest = crypto.createHash('sha256');
+  const [first, last] = result.chunks;
+  const tail = await preparation.loadChunk(file, last);
+  const head = await preparation.loadChunk(file, first);
+  assert.deepEqual(await preparation.loadChunk(file, last), tail);
+  assert.equal(head.length, size);
+  assert.equal(head.every(value => value === 17), true);
+  assert.deepEqual([...tail], [22]);
+  assert.equal(digest.update(head).update(tail).digest('hex'), result.manifest.sha256);
+});

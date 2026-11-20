@@ -74,6 +74,8 @@ completed the file. Estimates are display-cycle durations, never receiver
 completion countdowns or effective KiB/s. Focused resend restarts the selected
 chunk's fountain sequence. See the [device test matrix](docs/SENDER_V1_1_DEVICE_TEST.md).
 
+In the development build, the advanced **Shorten repeated fountain cycles** option is off by default. For compressible chunks it can switch to the next unit when the encoder starts repeating, after at least 30 displayed frames. Leave it off when the camera benefits from more repeats. Cycle estimates use the full frame budget.
+
 ## Development
 
 The maintainable source is `send.html` plus the scripts under `src/`. The
@@ -92,6 +94,7 @@ end-user artifact and does not require a server.
 
 ## Compatibility and design
 
+- [Architecture, security and performance review (Chinese)](docs/REVIEW_2026-11-21.zh-Hans.md)
 - [AirGap BigFile v1 architecture](docs/AIRGAP_BIGFILE_V1.md)
 - [Manifest v1 specification](docs/manifest-spec.md)
 - [Upstream provenance](UPSTREAM.md)

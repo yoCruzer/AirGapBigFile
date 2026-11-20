@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: data:">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; form-action 'none'; connect-src 'self'; style-src 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'">
   <title>AirGap BigFile</title>
   <style>
     :root {
@@ -190,6 +190,8 @@
             </select>
           </label>
         </div>
+        <label><input type="checkbox" id="shortenRepeats"> <span data-i18n="shortenRepeats">Shorten repeated fountain cycles (experimental)</span></label>
+        <p class="hint" data-i18n="repeatHint"></p>
         <p class="hint" data-i18n="burstHint">Burst factor controls one continuous stream's display length. Returning to a chunk starts its fountain sequence again; it does not continue prior block numbering.</p>
         <p class="hint" data-i18n="controlsHint"></p>
       </details>
@@ -263,6 +265,7 @@
   <script src="src/i18n.js"></script>
   <script src="src/render-timing.js"></script>
   <script src="src/wake-lock.js"></script>
+  <script src="src/encoder.js"></script>
   <script src="src/app.js"></script>
   <script src="vendor/cimbar-wasm-v0.6.4/cimbar_js.2026-01-20T0312.js"></script>
 </body>

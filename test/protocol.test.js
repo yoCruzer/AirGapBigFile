@@ -94,6 +94,7 @@ test('logical and wire IDs wrap at their respective boundaries', () => {
     [65530, 6, 0, 0],
     [65535, 1, 0, 0],
     [65535, 129, 128, 0],
+    [2, Number.MAX_SAFE_INTEGER, 1, 1],
   ];
   for (const [base, offset, logical, wire] of cases) {
     assert.equal(protocol.logicalEncodeId(base, offset), logical, `logical base=${base} offset=${offset}`);
@@ -116,4 +117,24 @@ test('golden fixture matches hashes and ID mapping', () => {
     crypto.createHash('sha256').update(Buffer.concat(parts)).digest('hex'),
     manifest.sha256,
   );
+});
+
+test('rejects coerced digest types, missing indexes and ill-formed Unicode', () => {
+  assert.throws(() => protocol.validateManifest(validManifest({ sha256: [H] })), /SHA-256/);
+  const m = validManifest();
+  m.chunks[0].sha256 = [H];
+  assert.throws(() => protocol.validateManifest(m), /SHA-256/);
+  delete m.chunks[0];
+  m.total_size = m.chunks[1].size;
+  assert.throws(() => protocol.validateManifest(m), /index/);
+  assert.equal(protocol.isSafeLogicalFilename('x\uD800.bin'), false);
+  assert.equal(protocol.isSafeLogicalFilename('📁.bin'), true);
+});
+
+test('all 120 parts and the manifest have distinct wire IDs for every base residue', () => {
+  for (let base = 65408; base <= 65535; base++) {
+    const ids = Array.from({ length: 121 }, (_, i) => protocol.wireId(base, i));
+    assert.equal(new Set(ids).size, 121);
+    assert.equal(ids.every((wire, i) => wire === protocol.logicalEncodeId(base, i) % 128), true);
+  }
 });

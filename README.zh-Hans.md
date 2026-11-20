@@ -40,6 +40,7 @@ AirGap BigFile 是 AirGapFree 推荐的浏览器大文件光学发送端。它�
 - 目标 FPS：12、15（默认）、18、20、24、30。30 是本轮实验上限。
 - 冗余度：1.2×（快速 / 实验性）、1.5×、2×（默认）、3×。
   更低冗余度可缩短每轮展示，但识别条件差时可能需要更多重传。
+- 当前开发版的「缩短重复的喷泉编码轮次」是默认关闭的实验选项。编码器开始重复一个分块的喷泉序列后，可提前切换到下一项，每个分块至少展示 30 帧。适合可压缩数据；识别条件较差时可关闭以增加重复机会。轮播时长估计仍按完整帧数计算。
 - 发送和暂停期间 FPS / 冗余度锁定；停止后解锁。文件准备后分块大小仍锁定。
 - 实际 FPS 与帧间隔：统计约最近 2 秒内可见发送期间的浏览器帧提交，
   至少积累 1 秒样本才显示；开始及继续时重置，暂停时间不计入。
@@ -76,6 +77,7 @@ python3 scripts/verify-standalone.py
 协议仍为 v1：`version: 1`、`tool: "cimbar-bigfile"`，清单后接分块，
 保留 30 帧最小连续帧组。没有修改 AirGapFree、libcimbar v0.6.4、WASM 或 mode 68。
 
+- [架构、安全与速率审查记录](docs/REVIEW_2026-11-21.zh-Hans.md)
 - [v1 架构](docs/AIRGAP_BIGFILE_V1.md)
 - [Manifest v1 规范](docs/manifest-spec.md)
 - [上游来源](UPSTREAM.md)与[第三方声明](THIRD_PARTY_NOTICES.md)

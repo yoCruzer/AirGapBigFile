@@ -30,6 +30,7 @@
       focusedChunk: null,
       fps: 15,
       burstFactor: 2,
+      shortenRepeats: false,
       error: null,
     };
   }

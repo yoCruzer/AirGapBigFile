@@ -23,7 +23,7 @@
       if (!item) return Promise.resolve(null);
       const ownerRevision = revision;
       const promise = Promise.resolve()
-        .then(() => loadUnit(item))
+        .then(() => ownerRevision === revision ? loadUnit(item) : null)
         .then((payload) => {
           if (ownerRevision !== revision) return null;
           const value = initializeUnit(item, payload);

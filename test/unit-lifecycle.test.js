@@ -171,3 +171,16 @@ test('stale mode-change completion cannot clobber the new stream readiness', asy
   assert.equal(label(controller.snapshot().scheduler.current), 'M');
   assert.equal(controller.snapshot().scheduler.phase, 'chunk');
 });
+
+test('immediate invalidation avoids starting obsolete file I/O', async () => {
+  let reads = 0;
+  const lifecycle = lifecycleModule.createAsyncUnitLifecycle({
+    nextUnit: () => ({ kind: 'chunk', index: 0 }),
+    loadUnit() { reads += 1; },
+    initializeUnit() { assert.fail('obsolete payload'); },
+  });
+  const pending = lifecycle.ensureInitialized();
+  lifecycle.invalidate();
+  assert.equal(await pending, null);
+  assert.equal(reads, 0);
+});

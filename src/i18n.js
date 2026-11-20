@@ -76,6 +76,10 @@
     "wakePending": "Requesting…",
     "wakeHeld": "Active",
     "wakeUnavailable": "Unavailable",
+    "shortenRepeats": "Shorten repeated fountain cycles (experimental)",
+    "repeatHint": "When the encoder starts repeating a chunk, move on after at least 30 frames. Estimates use the full frame budget. Turn this off if the camera needs more repeats.",
+    "errorDisplay": "The encoder could not start or stopped working. Check WebGL support and reload the page.",
+    "errorChanged": "The chunk no longer matches the prepared file. Choose the file again.",
     "errorEmpty": "Cannot prepare an empty file.",
     "errorFilename": "The filename is unsafe for AirGapFree. Please rename the file.",
     "errorLimit": "File exceeds the v1 limit of 120 × 10 MiB.",
@@ -159,6 +163,10 @@
     "wakePending": "请求中…",
     "wakeHeld": "已启用",
     "wakeUnavailable": "不可用",
+    "shortenRepeats": "缩短重复的喷泉编码轮次（实验）",
+    "repeatHint": "编码器开始重复当前分块后，可提前切换，至少展示 30 帧。时长估计按完整帧数计算。若相机需要更多重传，请关闭此选项。",
+    "errorDisplay": "编码器无法启动或已停止工作。请检查 WebGL 支持并重新加载页面。",
+    "errorChanged": "分块内容与准备时不一致，请重新选择文件。",
     "errorEmpty": "无法准备空文件。",
     "errorFilename": "文件名不符合 AirGapFree 安全规则，请重命名文件。",
     "errorLimit": "文件超出 v1 的 120 × 10 MiB 上限。",
@@ -188,6 +196,7 @@
 
   function errorTranslationKey(error) {
     const message = error instanceof Error ? error.message : String(error);
+    if (/Chunk digest mismatch/.test(message)) return 'errorChanged';
     if (/empty file/.test(message)) return 'errorEmpty';
     if (/filename.*safe/.test(message)) return 'errorFilename';
     if (/exceeds.*limit/.test(message)) return 'errorLimit';

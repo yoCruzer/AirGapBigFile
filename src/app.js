@@ -9,10 +9,12 @@
   const t = (key, values) => A.translate(language, key, values);
   let controller = null;
   let wasmReady = false;
+  let wasmFailed = false;
   let prepareAbort = null;
   let renderTimer = null;
   let unitLifecycle = null;
   let streamReady = false;
+  let lastSubmission = null;
   let framesInBurst = 0;
   let framesInBurstTarget = 0;
   let lastError = '';
@@ -89,9 +91,10 @@
     setText('wakeNotice', t('wakeNotice'));
     byId('fps').disabled = active;
     byId('burstFactor').disabled = active;
+    byId('shortenRepeats').disabled = active;
 
     setText('stateValue', t('status.' + state.status));
-    setText('wasmValue', t(wasmReady ? 'status.ready' : 'loading'));
+    setText('wasmValue', t(wasmFailed ? 'status.error' : wasmReady ? 'status.ready' : 'loading'));
     setText('modeValue', state.mode === A.MODE.FOCUS
       ? t('focusMode', { index: state.focusedChunk + 1 })
       : t('sweepMode'));
@@ -122,9 +125,9 @@
     byId('focusButton').disabled = !prepared || preparing;
     byId('sweepButton').disabled = !prepared || preparing || state.mode === A.MODE.SWEEP;
     byId('fullscreenButton').disabled = !streamReady;
-    byId('errorBox').hidden = !lastError;
-    setText('errorBox', lastError ? t(lastError) : '');
-    byId('canvasWrap').classList.toggle('active', active);
+    byId('errorBox').hidden = !wasmFailed && !lastError;
+    setText('errorBox', wasmFailed ? t('errorDisplay') : lastError ? t(lastError) : '');
+    byId('canvasWrap').classList.toggle('active', active && lastSubmission !== null);
   }
 
   async function prepareFile(file) {
@@ -165,34 +168,6 @@
     }
   }
 
-  function initEncode(filename, encodeId) {
-    const filenameBytes = new TextEncoder().encode(filename);
-    const pointer = Module._malloc(filenameBytes.length);
-    try {
-      new Uint8Array(Module.HEAPU8.buffer, pointer, filenameBytes.length).set(filenameBytes);
-      const result = Module._cimbare_init_encode(pointer, filenameBytes.length, encodeId);
-      if (result < 0) throw new Error(`libcimbar rejected ${filename}`);
-    } finally {
-      Module._free(pointer);
-    }
-  }
-
-  function feedEncoder(bytes) {
-    const bufferSize = Module._cimbare_encode_bufsize();
-    const pointer = Module._malloc(bufferSize);
-    try {
-      const wasmBuffer = new Uint8Array(Module.HEAPU8.buffer, pointer, bufferSize);
-      for (let offset = 0; offset < bytes.length; offset += bufferSize) {
-        const count = Math.min(bufferSize, bytes.length - offset);
-        wasmBuffer.set(bytes.subarray(offset, offset + count));
-        Module._cimbare_encode(pointer, count);
-      }
-      Module._cimbare_encode(pointer, 0);
-    } finally {
-      Module._free(pointer);
-    }
-  }
-
   function createUnitLifecycle() {
     const transfer = {
       file: state.file,
@@ -215,9 +190,8 @@
         };
       },
       initializeUnit(_item, payload) {
-        initEncode(payload.filename,
-          A.logicalEncodeId(transfer.manifest.encode_id_base, payload.logicalOffset));
-        feedEncoder(payload.bytes);
+        A.initializeEncoder(Module, payload.filename,
+          A.logicalEncodeId(transfer.manifest.encode_id_base, payload.logicalOffset), payload.bytes);
         framesInBurst = 0;
         framesInBurstTarget = A.framesForBurst(payload.bytes.length, transfer.burstFactor);
         return framesInBurstTarget;
@@ -262,19 +236,27 @@
     if (state.status !== A.STATUS.SENDING || !streamReady) return;
     const now = performance.now();
     try {
-      if (timing.due(now)) {
-        // Leave the final frame on the canvas for a full paced interval before
-        // loading/initializing the next unit, which can change the canvas.
-        if (framesInBurst >= framesInBurstTarget) {
+      if (framesInBurst >= framesInBurstTarget) {
+        // Hold from actual submission even if the last RAF arrived late.
+        // Loading doesn't consume the next unit's first pacing deadline.
+        if (now - lastSubmission + 0.001 >= 1000 / state.fps) {
           void advanceCurrentUnit().then((ready) => {
             if (ready) scheduleFrame();
           }).catch(handleRuntimeError);
-          return;
+        } else scheduleFrame();
+        return;
+      }
+      if (timing.due(now)) {
+        const sequence = Module._cimbare_next_frame(false);
+        if (sequence < 1 || Module._cimbare_render() !== 1) throw new Error('libcimbar frame failed');
+        if (state.shortenRepeats && state.currentItem.kind === A.ITEM.CHUNK &&
+            framesInBurst > 0 && sequence === 1) {
+          framesInBurstTarget = Math.min(framesInBurstTarget, Math.max(A.MIN_BURST_FRAMES, framesInBurst + 1));
         }
-        Module._cimbare_render();
-        Module._cimbare_next_frame(false);
         framesInBurst += 1;
-        timing.record(performance.now());
+        if (lastSubmission === null) byId('canvasWrap').classList.toggle('active', true);
+        lastSubmission = performance.now();
+        timing.record(lastSubmission);
       }
       if (now - lastMetricsRender >= 250) { lastMetricsRender = now; render(); }
       scheduleFrame();
@@ -294,6 +276,7 @@
 
   function handleRuntimeError(error) {
     clearRenderTimer();
+    lastSubmission = null;
     void wakeLock.release();
     pauseReason = null;
     timing.reset();
@@ -313,6 +296,7 @@
     lastError = '';
     state.fps = Number(byId('fps').value);
     state.burstFactor = Number(byId('burstFactor').value);
+    state.shortenRepeats = byId('shortenRepeats').checked;
     controller.start();
     pauseReason = null;
     timing = A.createRenderTiming(state.fps);
@@ -347,6 +331,7 @@
 
   function stopSending() {
     clearRenderTimer();
+    lastSubmission = null;
     void wakeLock.release();
     pauseReason = null;
     timing.reset();
@@ -362,6 +347,7 @@
   function changeMode(mode) {
     if (unitLifecycle) unitLifecycle.invalidate();
     streamReady = false;
+    lastSubmission = null;
     clearRenderTimer();
     if (mode === A.MODE.FOCUS) controller.focus(Number(byId('focusChunk').value));
     else controller.sweep();
@@ -407,7 +393,11 @@
     try { localStorage.setItem(A.LANGUAGE_KEY, language); } catch (_) { /* Storage is optional. */ }
     applyLanguage();
   });
-  byId('fileInput').addEventListener('change', (event) => void prepareFile(event.target.files[0]));
+  byId('fileInput').addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    event.target.value = '';
+    void prepareFile(file);
+  });
   byId('dropzone').addEventListener('click', () => byId('fileInput').click());
   byId('dropzone').addEventListener('keydown', (event) => {
     if (event.key === 'Enter' || event.key === ' ') byId('fileInput').click();
@@ -439,12 +429,23 @@
 
   window.Module = {
     canvas: byId('canvas'),
+    onAbort() {
+      wasmFailed = true;
+      wasmReady = false;
+      handleRuntimeError(new Error('libcimbar runtime unavailable'));
+    },
     onRuntimeInitialized() {
-      wasmReady = true;
-      Module._cimbare_configure(68, -1);
-      idealRatio = Module._cimbare_get_aspect_ratio() || 1;
-      fitCanvas();
-      render();
+      try {
+        if (Module._cimbare_configure(68, -1) !== 0) throw new Error('libcimbar display unavailable');
+        idealRatio = Module._cimbare_get_aspect_ratio() || 1;
+        fitCanvas();
+        wasmReady = true;
+        render();
+      } catch (error) {
+        wasmFailed = true;
+        wasmReady = false;
+        handleRuntimeError(error);
+      }
     },
     print(text) { console.info('[libcimbar]', text); },
     printErr(text) { console.error('[libcimbar]', text); },

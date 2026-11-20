@@ -26,7 +26,7 @@ receive it without a protocol fork.
 - `filename` is a non-empty UTF-8 string and is not chunk identity. To match
   AirGapFree it cannot be `.`, `..`, contain `/` or `\\`, or contain Unicode
   control characters in Unicode General Categories `Cc` or `Cf` (including
-  soft-hyphen, bidi, and other format controls).
+  soft-hyphen, bidi, and other format controls). Unpaired UTF-16 surrogate code units are rejected before encoding.
 - `total_size`, `chunk_size`, and every chunk `size` are positive safe integers.
   Zero-byte transfers are rejected.
 - `sha256` fields are lowercase 64-character hexadecimal SHA-256 values.

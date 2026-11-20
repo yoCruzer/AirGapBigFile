@@ -47,18 +47,18 @@ The compiled wasm binary additionally embeds **wirehair** (a fountain code libra
 
 ## WASM API used by encoder (v0.6.4)
 
-Based on inspection of `main.2026-01-20T0312.js`:
+The shipped adapter follows the [v0.6.4 encoder ABI](https://github.com/sz3/libcimbar/blob/v0.6.4/src/lib/cimbar_js/cimbar_js.cpp).
 
 | Export | Purpose |
 |--------|---------|
-| `_cimbare_configure(modeVal, frameRate)` | Set mode. modeVal: `4`=4C, `66`=Bu, `67`=Bm, `68`=B (default) |
+| `_cimbare_configure(modeVal, compression)` | Set mode and compression level. A compression value of -1 selects the configured default. Mode values: `4`=4C, `66`=Bu, `67`=Bm, `68`=B (default) |
 | `_cimbare_get_aspect_ratio()` | Returns ideal w/h ratio |
 | `_cimbare_rotate_window(needRotate)` | Internal window orientation flip |
 | `_cimbare_encode_bufsize()` | Returns expected per-call streaming chunk size |
 | `_cimbare_init_encode(fnPtr, fnLen, fountain_id)` | **Start a new fountain stream**. fountain_id = -1 auto-increments; pass explicit value to control encode_id (key for our chunked wrapper). |
-| `_cimbare_encode(dataPtr, dataLen)` | Stream data bytes. Call with len=0 to flush. |
-| `_cimbare_render()` | Render current frame to canvas |
-| `_cimbare_next_frame(colorBalance)` | Advance frame, returns frame count |
+| `_cimbare_encode(dataPtr, dataLen)` | Returns 1 for a full buffer. A short buffer finalizes and returns 0. An exact multiple needs a final zero-length buffer. Negative values signal errors. |
+| `_cimbare_render()` | Render the prepared frame. Returns 1 when drawn, 0 when no frame is ready, or a negative error. |
+| `_cimbare_next_frame(colorBalance)` | Generate the next frame for render. The counter returns to 1 when the fountain sequence restarts. |
 
 **Important**: Filename passed to `_cimbare_init_encode` is embedded into the ZSTD header. When CFC decodes, it uses this name as the saved filename. Our chunked wrapper exploits this: each application-level chunk is initialized with a synthetic filename like `<basename>.part00.bin`.
 

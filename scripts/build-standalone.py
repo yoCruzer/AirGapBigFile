@@ -4,9 +4,11 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -57,15 +59,32 @@ def build_html() -> str:
         raise ValueError("send.html must load libcimbar glue last")
     if len(set(scripts)) != len(scripts):
         raise ValueError("send.html contains duplicate runtime script references")
-    return SCRIPT_PATTERN.sub(lambda match: _inline_script(match.group(1), wasm_base64), html)
+    hashes = []
+
+    def embed(match):
+        tag = _inline_script(match.group(1), wasm_base64)
+        script = tag[len("<script>"):-len("</script>")].encode("utf-8")
+        digest = base64.b64encode(hashlib.sha256(script).digest()).decode("ascii")
+        hashes.append(f"'sha256-{digest}'")
+        return tag
+
+    html = SCRIPT_PATTERN.sub(embed, html)
+    return html.replace("connect-src 'self'", "connect-src 'none'", 1).replace(
+        "script-src 'self'", "script-src " + " ".join(hashes), 1)
 
 
 def main() -> int:
     try:
         output = build_html()
-        temporary = OUTPUT.with_suffix(OUTPUT.suffix + ".tmp")
-        temporary.write_text(output, encoding="utf-8", newline="\n")
-        os.replace(temporary, OUTPUT)
+        temporary = tempfile.NamedTemporaryFile(dir=OUTPUT.parent, delete=False)
+        try:
+            with temporary:
+                temporary.write(output.encode("utf-8"))
+            os.chmod(temporary.name, 0o644)
+            os.replace(temporary.name, OUTPUT)
+        finally:
+            if os.path.exists(temporary.name):
+                os.unlink(temporary.name)
     except (OSError, ValueError) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 1

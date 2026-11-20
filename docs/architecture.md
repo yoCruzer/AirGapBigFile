@@ -10,7 +10,10 @@ src/sender-state.js               sender-owned state machine
 src/preparation.js                ranged reads and incremental hashing
 src/scheduler.js                  pure sweep/focus item selection
 src/unit-lifecycle.js             async unit ownership and initialization join
-src/app.js                        DOM, libcimbar adapter, render loop
+src/encoder.js                    checked libcimbar streaming ABI adapter
+src/render-timing.js              fractional deadlines and submission measurements
+src/wake-lock.js                  async screen-lock ownership
+src/app.js                        DOM events, unit selection and render loop
 vendor/js-sha256-0.11.1/          pinned incremental SHA-256
 vendor/cimbar-wasm-v0.6.4/        unmodified encoder glue and WASM
 scripts/build-standalone.py       deterministic source inliner

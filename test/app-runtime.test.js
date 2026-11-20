@@ -34,7 +34,7 @@ function harness() {
   document.querySelectorAll = () => labels;
   document.createElement = () => new Element();
   const api = Object.assign({}, ...['protocol', 'sender-state', 'scheduler', 'transmission-controller',
-    'unit-lifecycle', 'i18n', 'render-timing', 'wake-lock'].map((name) => require(`../src/${name}.js`)));
+    'unit-lifecycle', 'encoder', 'i18n', 'render-timing', 'wake-lock'].map((name) => require(`../src/${name}.js`)));
   api.prepareFileByRanges = async () => ({
     manifest: { filename: 'x.bin', sha256: 'abc', chunk_size: 5242880, chunk_count: 2, encode_id_base: 1 },
     manifestBytes: new Uint8Array([1]),
@@ -55,19 +55,19 @@ function harness() {
   vm.runInNewContext(app, context);
   let renders = 0; let advances = 0; let inits = 0;
   Object.assign(context.Module, {
-    HEAPU8: new Uint8Array(8192), _malloc: () => 0, _free() {},
-    _cimbare_configure() {}, _cimbare_get_aspect_ratio: () => 1,
+    HEAPU8: new Uint8Array(8192), _malloc: () => 4, _free() {},
+    _cimbare_configure: () => 0, _cimbare_get_aspect_ratio: () => 1,
     _cimbare_init_encode: () => { inits += 1; return 0; },
-    _cimbare_encode_bufsize: () => 4096, _cimbare_encode() {},
-    _cimbare_render: () => { renders += 1; }, _cimbare_next_frame: () => { advances += 1; },
+    _cimbare_encode_bufsize: () => 4096, _cimbare_encode: (_, length) => length === 4096 ? 1 : 0,
+    _cimbare_render: () => { renders += 1; return 1; }, _cimbare_next_frame: () => { advances += 1; return advances; },
   });
   context.Module.onRuntimeInitialized();
   return {
     elements, document, context, storage,
     state: context.AirGapBigFileApp.state,
     counts: () => ({ renders, advances, inits }),
-    async prepare() {
-      elements.fileInput.emit('change', { target: { files: [{ name: 'x.bin', size: 1500000, slice() {} }] } });
+    async prepare(file = { name: 'x.bin', size: 1500000, slice() {} }) {
+      elements.fileInput.emit('change', { target: { files: [file] } });
       await flush();
     },
     async click(id) { elements[id].emit('click'); await flush(); },
@@ -160,5 +160,91 @@ test('render failure cancels frames, releases wake lock and unlocks controls', a
   assert.equal(h.elements.wakeValue.textContent, 'Not held');
   assert.equal(h.elements.errorBox.hidden, false);
   await h.frame(1000);
-  assert.equal(h.counts().advances, 0);
+  assert.equal(h.counts().advances, 1);
+});
+
+test('only submitted frames count and a failed display configuration disables Start', async () => {
+  const h = harness();
+  h.context.Module._cimbare_configure = () => -1;
+  h.context.Module.onRuntimeInitialized();
+  await h.prepare();
+  assert.equal(h.elements.startButton.disabled, true);
+  assert.equal(h.elements.errorBox.hidden, false);
+  for (const [name, result] of [['_cimbare_next_frame', -1], ['_cimbare_render', 0]]) {
+    const run = harness();
+    await run.prepare(); await run.click('startButton');
+    run.context.Module[name] = () => result;
+    await run.frame(0);
+    assert.equal(run.state.status, 'ready');
+    assert.equal(run.elements.errorBox.hidden, false);
+    assert.equal(run.elements.actualFpsValue.textContent, '—');
+  }
+});
+
+test('shorten repeats respects the manifest and floor, and is opt-in', async () => {
+  for (const [enabled, repeats, expectedFrames] of [[true, true, 30], [false, true, 200], [true, false, 200]]) {
+    const h = harness();
+    await h.prepare();
+    h.elements.shortenRepeats.checked = enabled;
+    h.elements.fps.value = '30';
+    let sequence = 0;
+    h.context.Module._cimbare_next_frame = () => {
+      sequence += 1;
+      return repeats ? 1 + ((sequence - 1) % 7) : sequence;
+    };
+    await h.click('startButton');
+    assert.equal(h.elements.shortenRepeats.disabled, true);
+    for (let tick = 0; tick <= 31 + expectedFrames; tick++) await h.frame(tick * 1000 / 30);
+    assert.equal(h.counts().inits, 3);
+    assert.equal(h.counts().renders, 30 + expectedFrames);
+    assert.equal(h.state.currentItem.kind, 'manifest');
+    await h.click('stopButton');
+    assert.equal(h.elements.shortenRepeats.disabled, false);
+  }
+});
+
+test('a late final frame stays up for a paced interval measured from submission', async () => {
+  const h = harness();
+  await h.prepare();
+  h.elements.fps.value = '30';
+  await h.click('startButton');
+  for (let i = 0; i < 29; i++) await h.frame(i * 1000 / 30);
+  await h.frame(996);
+  await h.frame(1001);
+  assert.equal(h.counts().inits, 1);
+  await h.frame(1030);
+  assert.equal(h.counts().inits, 2);
+  await h.frame(1046);
+  assert.equal(h.counts().renders, 31);
+});
+
+test('a changed file stops before chunk initialization and can be prepared again', async () => {
+  const h = harness();
+  const preparation = require('../src/preparation.js');
+  let prepared;
+  let loaded;
+  h.context.AirGapBigFile.prepareFileByRanges = (file, options) => {
+    prepared = preparation.prepareFileByRanges(file, { ...options, encodeIdBase: 7, yieldControl() {} });
+    return prepared;
+  };
+  h.context.AirGapBigFile.loadChunk = (...args) => {
+    loaded = preparation.loadChunk(...args);
+    return loaded;
+  };
+  let contents = 'hello';
+  const file = { name: 'synthetic.bin', size: 5, slice() { return new Blob([contents]); } };
+  await h.prepare(file);
+  await prepared; await flush();
+  contents = 'world';
+  await h.click('startButton');
+  for (let i = 0; i <= 30; i++) await h.frame(i * 1000 / 15);
+  await assert.rejects(loaded, /digest mismatch/);
+  await flush();
+  assert.equal(h.counts().inits, 1);
+  assert.equal(h.elements.errorBox.textContent, h.context.AirGapBigFile.translate('en', 'errorChanged'));
+  assert.equal(h.state.status, 'ready');
+  await h.prepare(file);
+  await prepared; await flush();
+  assert.equal(h.state.status, 'ready');
+  assert.equal(h.elements.errorBox.hidden, true);
 });

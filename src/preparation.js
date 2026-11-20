@@ -31,6 +31,13 @@
     return new Uint8Array(buffer);
   }
 
+  async function chunkDigest(bytes) {
+    const subtle = globalThis.crypto && globalThis.crypto.subtle;
+    if (!subtle) return sha256.create().update(bytes).hex();
+    const digest = new Uint8Array(await subtle.digest('SHA-256', bytes));
+    return Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  }
+
   async function prepareFileByRanges(file, options) {
     const config = options || {};
     if (!file || typeof file.slice !== 'function' || !Number.isSafeInteger(file.size) || file.size < 0) {
@@ -49,7 +56,7 @@
       : config.encodeIdBase;
     const onProgress = typeof config.onProgress === 'function' ? config.onProgress : function () {};
     const yieldControl = typeof config.yieldControl === 'function' ? config.yieldControl : defaultYield;
-    const wholeHasher = sha256.create();
+    const wholeHasher = chunkCount > 1 ? sha256.create() : null;
     const chunks = [];
     let hashedBytes = 0;
 
@@ -60,8 +67,9 @@
       const bytes = await readBlobRange(file, offset, size);
       throwIfAborted(config.signal);
 
-      wholeHasher.update(bytes);
-      const chunkSha = sha256.create().update(bytes).hex();
+      if (wholeHasher) wholeHasher.update(bytes);
+      const chunkSha = await chunkDigest(bytes);
+      throwIfAborted(config.signal);
       chunks.push({ index, offset, size, sha256: chunkSha });
       hashedBytes += size;
       onProgress({
@@ -80,7 +88,7 @@
     const manifest = protocol.createManifest({
       filename: file.name,
       totalSize: file.size,
-      sha256: wholeHasher.hex(),
+      sha256: wholeHasher ? wholeHasher.hex() : chunks[0].sha256,
       chunkSize,
       encodeIdBase,
       chunks,
@@ -90,10 +98,14 @@
   }
 
   async function loadChunk(file, descriptor) {
-    if (!descriptor || !Number.isSafeInteger(descriptor.offset) || !Number.isSafeInteger(descriptor.size)) {
+    if (!descriptor || !Number.isSafeInteger(descriptor.offset) || descriptor.offset < 0 ||
+        !Number.isSafeInteger(descriptor.size) || descriptor.size <= 0 ||
+        descriptor.offset > file.size - descriptor.size) {
       throw new TypeError('A valid chunk descriptor is required');
     }
-    return readBlobRange(file, descriptor.offset, descriptor.size);
+    const bytes = await readBlobRange(file, descriptor.offset, descriptor.size);
+    if (await chunkDigest(bytes) !== descriptor.sha256) throw new Error('Chunk digest mismatch');
+    return bytes;
   }
 
   return { prepareFileByRanges, loadChunk };

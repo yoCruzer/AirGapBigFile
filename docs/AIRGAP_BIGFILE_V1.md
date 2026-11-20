@@ -67,7 +67,9 @@ prepared state stores only the File reference, manifest, and descriptors:
 { index, offset, size, sha256 }
 ```
 
-Encoding loads only the selected descriptor's slice. Intended JavaScript file
+Single-chunk files share the same whole-file and part digest. Chunk digests use Web Crypto when available, with the vendored incremental implementation as the offline fallback. Multi-chunk files always compute the whole-file digest incrementally.
+
+Encoding loads the selected descriptor’s slice and checks its SHA-256 again before passing it to WASM. Intended JavaScript file
 data residency is one current 5 MiB or 10 MiB chunk, plus the small manifest and
 state. This is not a claim about total browser/WASM process RSS.
 
@@ -133,6 +135,8 @@ data frame. This preserves 24 FPS pacing on 60 Hz rather than rounding it to
 20 FPS. The last frame is left for a paced interval before the next unit loads
 and initializes; unit loading and encoding can reduce the measured rate.
 Synchronous render errors cancel RAF and stop the transmission controller.
+
+The v0.6.4 ABI finalizes on the first short block, including a zero-length block after an exact multiple. Each submission generates a frame before rendering it and checks both results. The last submission time sets the earliest unit transition. An optional experimental setting shortens chunk bursts after the pinned encoder reports its sequence counter restarting at one. At least 30 frames are displayed. Full-cycle estimates still use the configured raw-byte budget. The setting is off by default and locks with FPS and redundancy during a run.
 
 Actual FPS uses intervals between successful browser frame submissions in a
 rolling 2-second window (minimum 1-second sample span). Its denominator extends

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: data:">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; form-action 'none'; connect-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-YmHUjEFhAtBgnZs1UmNBBCbbPtWjGvDj0Zum0FYsoZM=' 'sha256-QhC4au4hXb+BRIdSDKogKxkSwplcE4HdJseZq5lYqbs=' 'sha256-zjleGhNqg2/VmkP9v82VZl1vWSfcz5CvdWoeb/H6cts=' 'sha256-h9tHIThQca0hnA1SHXe0Jdpo7XNhKY6uuCaUc+tuxK4=' 'sha256-Ak11nsXi32qM9WfUBqWvCmHfAhTjVp24A960H6kK2Qo=' 'sha256-2LsgTZRlT98bo/qIbwcyOt7H7eyfYM5PFZIjE3Tea1E=' 'sha256-aY91/svUNezQI4bDXH7d3mtZ0xefetxbg1SMYNj7L0U=' 'sha256-/eKpUiy/P+0UZnjDsu3vke5O33QjSvUONaU9F3gTd64=' 'sha256-8tylUDR4GNCC4QIVTwxKRB/cDq+pWyASqZABbHJI/Cw=' 'sha256-VB3RNlUWJjaabfsKwuOcw4LZ5Ucjt1a+yY7YAxuI/Ok=' 'sha256-nDcrKcUtfN5Opp+rqLQujKRIFGLNZNHV2ZpqGTcgJT8=' 'sha256-6qSQZ58CRMnElWVLQri9A5mamRt9GuWWD0WfWDkZT+c=' 'sha256-mWjb2jKjhOALwLZ37WLlWyfOvg9YaLDXIteMhDxT+Wc=' 'wasm-unsafe-eval'">
   <title>AirGap BigFile</title>
   <style>
     :root {
@@ -190,6 +190,8 @@
             </select>
           </label>
         </div>
+        <label><input type="checkbox" id="shortenRepeats"> <span data-i18n="shortenRepeats">Shorten repeated fountain cycles (experimental)</span></label>
+        <p class="hint" data-i18n="repeatHint"></p>
         <p class="hint" data-i18n="burstHint">Burst factor controls one continuous stream's display length. Returning to a chunk starts its fountain sequence again; it does not continue prior block numbering.</p>
         <p class="hint" data-i18n="controlsHint"></p>
       </details>
@@ -800,7 +802,7 @@
   const CHUNK_SIZE_10_MIB = 10 * 1024 * 1024;
   const PROFILE_CHUNK_SIZES = Object.freeze([CHUNK_SIZE_5_MIB, CHUNK_SIZE_10_MIB]);
   const SHA256_RE = /^[0-9a-f]{64}$/;
-  const CONTROL_CHARACTER_RE = /[\p{Cc}\p{Cf}]/u;
+  const UNSAFE_CHARACTER_RE = /[\p{Cc}\p{Cf}\p{Cs}]/u;
 
   function assertSafeNonNegative(value, name) {
     if (!Number.isSafeInteger(value) || value < 0) {
@@ -821,7 +823,7 @@
       filename !== '..' &&
       !filename.includes('/') &&
       !filename.includes('\\') &&
-      !CONTROL_CHARACTER_RE.test(filename);
+      !UNSAFE_CHARACTER_RE.test(filename);
   }
 
   function assertSafeLogicalFilename(filename) {
@@ -871,7 +873,7 @@
     assertSafeNonNegative(base, 'base');
     assertSafeNonNegative(logicalOffset, 'logicalOffset');
     if (base > 0xFFFF) throw new RangeError('base must fit unsigned 16 bits');
-    return (base + logicalOffset) & 0xFFFF;
+    return (base + (logicalOffset & 0xFFFF)) & 0xFFFF;
   }
 
   function wireId(base, logicalOffset) {
@@ -890,7 +892,7 @@
     if (manifest.tool !== MANIFEST_TOOL) throw new Error('unsupported manifest tool');
     assertSafeLogicalFilename(manifest.filename);
     assertSafePositive(manifest.total_size, 'total_size');
-    if (!SHA256_RE.test(manifest.sha256)) throw new Error('invalid whole-file SHA-256');
+    if (typeof manifest.sha256 !== 'string' || !SHA256_RE.test(manifest.sha256)) throw new Error('invalid whole-file SHA-256');
     if (!Number.isSafeInteger(manifest.chunk_size) || manifest.chunk_size <= 0) {
       throw new Error('chunk_size must be a positive safe integer');
     }
@@ -910,7 +912,7 @@
     }
 
     let sizeSum = 0;
-    manifest.chunks.forEach((chunk, index) => {
+    for (const [index, chunk] of manifest.chunks.entries()) {
       if (!chunk || chunk.index !== index) throw new Error(`chunk ${index} index mismatch`);
       if (!Number.isSafeInteger(chunk.size) || chunk.size <= 0 || chunk.size > manifest.chunk_size) {
         throw new Error(`chunk ${index} has invalid size`);
@@ -918,9 +920,9 @@
       if (index < manifest.chunk_count - 1 && chunk.size !== manifest.chunk_size) {
         throw new Error(`chunk ${index} must have the declared chunk_size`);
       }
-      if (!SHA256_RE.test(chunk.sha256)) throw new Error(`chunk ${index} has invalid SHA-256`);
+      if (typeof chunk.sha256 !== 'string' || !SHA256_RE.test(chunk.sha256)) throw new Error(`chunk ${index} has invalid SHA-256`);
       sizeSum += chunk.size;
-    });
+    }
     if (sizeSum !== manifest.total_size) throw new Error('chunk metadata size does not match total_size');
     return manifest;
   }
@@ -1003,6 +1005,7 @@
       focusedChunk: null,
       fps: 15,
       burstFactor: 2,
+      shortenRepeats: false,
       error: null,
     };
   }
@@ -1170,6 +1173,13 @@
     return new Uint8Array(buffer);
   }
 
+  async function chunkDigest(bytes) {
+    const subtle = globalThis.crypto && globalThis.crypto.subtle;
+    if (!subtle) return sha256.create().update(bytes).hex();
+    const digest = new Uint8Array(await subtle.digest('SHA-256', bytes));
+    return Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  }
+
   async function prepareFileByRanges(file, options) {
     const config = options || {};
     if (!file || typeof file.slice !== 'function' || !Number.isSafeInteger(file.size) || file.size < 0) {
@@ -1188,7 +1198,7 @@
       : config.encodeIdBase;
     const onProgress = typeof config.onProgress === 'function' ? config.onProgress : function () {};
     const yieldControl = typeof config.yieldControl === 'function' ? config.yieldControl : defaultYield;
-    const wholeHasher = sha256.create();
+    const wholeHasher = chunkCount > 1 ? sha256.create() : null;
     const chunks = [];
     let hashedBytes = 0;
 
@@ -1199,8 +1209,9 @@
       const bytes = await readBlobRange(file, offset, size);
       throwIfAborted(config.signal);
 
-      wholeHasher.update(bytes);
-      const chunkSha = sha256.create().update(bytes).hex();
+      if (wholeHasher) wholeHasher.update(bytes);
+      const chunkSha = await chunkDigest(bytes);
+      throwIfAborted(config.signal);
       chunks.push({ index, offset, size, sha256: chunkSha });
       hashedBytes += size;
       onProgress({
@@ -1219,7 +1230,7 @@
     const manifest = protocol.createManifest({
       filename: file.name,
       totalSize: file.size,
-      sha256: wholeHasher.hex(),
+      sha256: wholeHasher ? wholeHasher.hex() : chunks[0].sha256,
       chunkSize,
       encodeIdBase,
       chunks,
@@ -1229,10 +1240,14 @@
   }
 
   async function loadChunk(file, descriptor) {
-    if (!descriptor || !Number.isSafeInteger(descriptor.offset) || !Number.isSafeInteger(descriptor.size)) {
+    if (!descriptor || !Number.isSafeInteger(descriptor.offset) || descriptor.offset < 0 ||
+        !Number.isSafeInteger(descriptor.size) || descriptor.size <= 0 ||
+        descriptor.offset > file.size - descriptor.size) {
       throw new TypeError('A valid chunk descriptor is required');
     }
-    return readBlobRange(file, descriptor.offset, descriptor.size);
+    const bytes = await readBlobRange(file, descriptor.offset, descriptor.size);
+    if (await chunkDigest(bytes) !== descriptor.sha256) throw new Error('Chunk digest mismatch');
+    return bytes;
   }
 
   return { prepareFileByRanges, loadChunk };
@@ -1253,10 +1268,12 @@
   const MODE = Object.freeze({ SWEEP: 'sweep', FOCUS: 'focus' });
   const ESTIMATED_BYTES_PER_FRAME = 7500;
 
+  const MIN_BURST_FRAMES = 30;
+
   function framesForBurst(byteCount, burstFactor) {
     if (!Number.isSafeInteger(byteCount) || byteCount < 0) throw new RangeError('byteCount must be non-negative');
     if (!Number.isFinite(burstFactor) || burstFactor < 1) throw new RangeError('burstFactor must be at least 1');
-    return Math.max(30, Math.ceil((byteCount / ESTIMATED_BYTES_PER_FRAME) * burstFactor));
+    return Math.max(MIN_BURST_FRAMES, Math.ceil((byteCount / ESTIMATED_BYTES_PER_FRAME) * burstFactor));
   }
 
   function framesForCycle(manifestBytes, chunks, burstFactor, focusedChunk = null) {
@@ -1335,7 +1352,7 @@
     return { nextItem, focus, sweep, pause, resume, snapshot };
   }
 
-  return { ITEM, SCHEDULER_MODE: MODE, ESTIMATED_BYTES_PER_FRAME, framesForBurst, framesForCycle, createScheduler };
+  return { ITEM, MIN_BURST_FRAMES, SCHEDULER_MODE: MODE, ESTIMATED_BYTES_PER_FRAME, framesForBurst, framesForCycle, createScheduler };
 });
 
 // AIRGAP INLINE END: src/scheduler.js
@@ -1439,7 +1456,7 @@
       if (!item) return Promise.resolve(null);
       const ownerRevision = revision;
       const promise = Promise.resolve()
-        .then(() => loadUnit(item))
+        .then(() => ownerRevision === revision ? loadUnit(item) : null)
         .then((payload) => {
           if (ownerRevision !== revision) return null;
           const value = initializeUnit(item, payload);
@@ -1572,6 +1589,10 @@
     "wakePending": "Requesting…",
     "wakeHeld": "Active",
     "wakeUnavailable": "Unavailable",
+    "shortenRepeats": "Shorten repeated fountain cycles (experimental)",
+    "repeatHint": "When the encoder starts repeating a chunk, move on after at least 30 frames. Estimates use the full frame budget. Turn this off if the camera needs more repeats.",
+    "errorDisplay": "The encoder could not start or stopped working. Check WebGL support and reload the page.",
+    "errorChanged": "The chunk no longer matches the prepared file. Choose the file again.",
     "errorEmpty": "Cannot prepare an empty file.",
     "errorFilename": "The filename is unsafe for AirGapFree. Please rename the file.",
     "errorLimit": "File exceeds the v1 limit of 120 × 10 MiB.",
@@ -1655,6 +1676,10 @@
     "wakePending": "请求中…",
     "wakeHeld": "已启用",
     "wakeUnavailable": "不可用",
+    "shortenRepeats": "缩短重复的喷泉编码轮次（实验）",
+    "repeatHint": "编码器开始重复当前分块后，可提前切换，至少展示 30 帧。时长估计按完整帧数计算。若相机需要更多重传，请关闭此选项。",
+    "errorDisplay": "编码器无法启动或已停止工作。请检查 WebGL 支持并重新加载页面。",
+    "errorChanged": "分块内容与准备时不一致，请重新选择文件。",
     "errorEmpty": "无法准备空文件。",
     "errorFilename": "文件名不符合 AirGapFree 安全规则，请重命名文件。",
     "errorLimit": "文件超出 v1 的 120 × 10 MiB 上限。",
@@ -1684,6 +1709,7 @@
 
   function errorTranslationKey(error) {
     const message = error instanceof Error ? error.message : String(error);
+    if (/Chunk digest mismatch/.test(message)) return 'errorChanged';
     if (/empty file/.test(message)) return 'errorEmpty';
     if (/filename.*safe/.test(message)) return 'errorFilename';
     if (/exceeds.*limit/.test(message)) return 'errorLimit';
@@ -1806,6 +1832,46 @@
 // AIRGAP INLINE END: src/wake-lock.js
 </script>
   <script>
+// AIRGAP INLINE BEGIN: src/encoder.js
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  root.AirGapBigFile = Object.assign(root.AirGapBigFile || {}, api);
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';
+
+  function initializeEncoder(module, filename, encodeId, bytes) {
+    const name = new TextEncoder().encode(filename);
+    const blockSize = module._cimbare_encode_bufsize();
+    if (!Number.isSafeInteger(blockSize) || blockSize <= 0) throw new Error('Invalid libcimbar buffer size');
+    const pointer = module._malloc(Math.max(name.length, blockSize));
+    if (!pointer) throw new Error('libcimbar allocation failed');
+    try {
+      module.HEAPU8.set(name, pointer);
+      if (module._cimbare_init_encode(pointer, name.length, encodeId) !== 0) {
+        throw new Error('libcimbar initialization failed');
+      }
+      // v0.6.4 finalizes on the first short block. An exact multiple
+      // needs a final zero-length call. The heap can grow between calls.
+      for (let offset = 0; offset <= bytes.length; offset += blockSize) {
+        const block = bytes.subarray(offset, offset + blockSize);
+        module.HEAPU8.set(block, pointer);
+        const result = module._cimbare_encode(pointer, block.length);
+        const final = block.length < blockSize;
+        if (result !== (final ? 0 : 1)) throw new Error('libcimbar encoding failed');
+        if (final) break;
+      }
+    } finally {
+      module._free(pointer);
+    }
+  }
+
+  return { initializeEncoder };
+});
+
+// AIRGAP INLINE END: src/encoder.js
+</script>
+  <script>
 // AIRGAP INLINE BEGIN: src/app.js
 (function () {
   'use strict';
@@ -1818,10 +1884,12 @@
   const t = (key, values) => A.translate(language, key, values);
   let controller = null;
   let wasmReady = false;
+  let wasmFailed = false;
   let prepareAbort = null;
   let renderTimer = null;
   let unitLifecycle = null;
   let streamReady = false;
+  let lastSubmission = null;
   let framesInBurst = 0;
   let framesInBurstTarget = 0;
   let lastError = '';
@@ -1898,9 +1966,10 @@
     setText('wakeNotice', t('wakeNotice'));
     byId('fps').disabled = active;
     byId('burstFactor').disabled = active;
+    byId('shortenRepeats').disabled = active;
 
     setText('stateValue', t('status.' + state.status));
-    setText('wasmValue', t(wasmReady ? 'status.ready' : 'loading'));
+    setText('wasmValue', t(wasmFailed ? 'status.error' : wasmReady ? 'status.ready' : 'loading'));
     setText('modeValue', state.mode === A.MODE.FOCUS
       ? t('focusMode', { index: state.focusedChunk + 1 })
       : t('sweepMode'));
@@ -1931,9 +2000,9 @@
     byId('focusButton').disabled = !prepared || preparing;
     byId('sweepButton').disabled = !prepared || preparing || state.mode === A.MODE.SWEEP;
     byId('fullscreenButton').disabled = !streamReady;
-    byId('errorBox').hidden = !lastError;
-    setText('errorBox', lastError ? t(lastError) : '');
-    byId('canvasWrap').classList.toggle('active', active);
+    byId('errorBox').hidden = !wasmFailed && !lastError;
+    setText('errorBox', wasmFailed ? t('errorDisplay') : lastError ? t(lastError) : '');
+    byId('canvasWrap').classList.toggle('active', active && lastSubmission !== null);
   }
 
   async function prepareFile(file) {
@@ -1974,34 +2043,6 @@
     }
   }
 
-  function initEncode(filename, encodeId) {
-    const filenameBytes = new TextEncoder().encode(filename);
-    const pointer = Module._malloc(filenameBytes.length);
-    try {
-      new Uint8Array(Module.HEAPU8.buffer, pointer, filenameBytes.length).set(filenameBytes);
-      const result = Module._cimbare_init_encode(pointer, filenameBytes.length, encodeId);
-      if (result < 0) throw new Error(`libcimbar rejected ${filename}`);
-    } finally {
-      Module._free(pointer);
-    }
-  }
-
-  function feedEncoder(bytes) {
-    const bufferSize = Module._cimbare_encode_bufsize();
-    const pointer = Module._malloc(bufferSize);
-    try {
-      const wasmBuffer = new Uint8Array(Module.HEAPU8.buffer, pointer, bufferSize);
-      for (let offset = 0; offset < bytes.length; offset += bufferSize) {
-        const count = Math.min(bufferSize, bytes.length - offset);
-        wasmBuffer.set(bytes.subarray(offset, offset + count));
-        Module._cimbare_encode(pointer, count);
-      }
-      Module._cimbare_encode(pointer, 0);
-    } finally {
-      Module._free(pointer);
-    }
-  }
-
   function createUnitLifecycle() {
     const transfer = {
       file: state.file,
@@ -2024,9 +2065,8 @@
         };
       },
       initializeUnit(_item, payload) {
-        initEncode(payload.filename,
-          A.logicalEncodeId(transfer.manifest.encode_id_base, payload.logicalOffset));
-        feedEncoder(payload.bytes);
+        A.initializeEncoder(Module, payload.filename,
+          A.logicalEncodeId(transfer.manifest.encode_id_base, payload.logicalOffset), payload.bytes);
         framesInBurst = 0;
         framesInBurstTarget = A.framesForBurst(payload.bytes.length, transfer.burstFactor);
         return framesInBurstTarget;
@@ -2071,19 +2111,27 @@
     if (state.status !== A.STATUS.SENDING || !streamReady) return;
     const now = performance.now();
     try {
-      if (timing.due(now)) {
-        // Leave the final frame on the canvas for a full paced interval before
-        // loading/initializing the next unit, which can change the canvas.
-        if (framesInBurst >= framesInBurstTarget) {
+      if (framesInBurst >= framesInBurstTarget) {
+        // Hold from actual submission even if the last RAF arrived late.
+        // Loading doesn't consume the next unit's first pacing deadline.
+        if (now - lastSubmission + 0.001 >= 1000 / state.fps) {
           void advanceCurrentUnit().then((ready) => {
             if (ready) scheduleFrame();
           }).catch(handleRuntimeError);
-          return;
+        } else scheduleFrame();
+        return;
+      }
+      if (timing.due(now)) {
+        const sequence = Module._cimbare_next_frame(false);
+        if (sequence < 1 || Module._cimbare_render() !== 1) throw new Error('libcimbar frame failed');
+        if (state.shortenRepeats && state.currentItem.kind === A.ITEM.CHUNK &&
+            framesInBurst > 0 && sequence === 1) {
+          framesInBurstTarget = Math.min(framesInBurstTarget, Math.max(A.MIN_BURST_FRAMES, framesInBurst + 1));
         }
-        Module._cimbare_render();
-        Module._cimbare_next_frame(false);
         framesInBurst += 1;
-        timing.record(performance.now());
+        if (lastSubmission === null) byId('canvasWrap').classList.toggle('active', true);
+        lastSubmission = performance.now();
+        timing.record(lastSubmission);
       }
       if (now - lastMetricsRender >= 250) { lastMetricsRender = now; render(); }
       scheduleFrame();
@@ -2103,6 +2151,7 @@
 
   function handleRuntimeError(error) {
     clearRenderTimer();
+    lastSubmission = null;
     void wakeLock.release();
     pauseReason = null;
     timing.reset();
@@ -2122,6 +2171,7 @@
     lastError = '';
     state.fps = Number(byId('fps').value);
     state.burstFactor = Number(byId('burstFactor').value);
+    state.shortenRepeats = byId('shortenRepeats').checked;
     controller.start();
     pauseReason = null;
     timing = A.createRenderTiming(state.fps);
@@ -2156,6 +2206,7 @@
 
   function stopSending() {
     clearRenderTimer();
+    lastSubmission = null;
     void wakeLock.release();
     pauseReason = null;
     timing.reset();
@@ -2171,6 +2222,7 @@
   function changeMode(mode) {
     if (unitLifecycle) unitLifecycle.invalidate();
     streamReady = false;
+    lastSubmission = null;
     clearRenderTimer();
     if (mode === A.MODE.FOCUS) controller.focus(Number(byId('focusChunk').value));
     else controller.sweep();
@@ -2216,7 +2268,11 @@
     try { localStorage.setItem(A.LANGUAGE_KEY, language); } catch (_) { /* Storage is optional. */ }
     applyLanguage();
   });
-  byId('fileInput').addEventListener('change', (event) => void prepareFile(event.target.files[0]));
+  byId('fileInput').addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    event.target.value = '';
+    void prepareFile(file);
+  });
   byId('dropzone').addEventListener('click', () => byId('fileInput').click());
   byId('dropzone').addEventListener('keydown', (event) => {
     if (event.key === 'Enter' || event.key === ' ') byId('fileInput').click();
@@ -2248,12 +2304,23 @@
 
   window.Module = {
     canvas: byId('canvas'),
+    onAbort() {
+      wasmFailed = true;
+      wasmReady = false;
+      handleRuntimeError(new Error('libcimbar runtime unavailable'));
+    },
     onRuntimeInitialized() {
-      wasmReady = true;
-      Module._cimbare_configure(68, -1);
-      idealRatio = Module._cimbare_get_aspect_ratio() || 1;
-      fitCanvas();
-      render();
+      try {
+        if (Module._cimbare_configure(68, -1) !== 0) throw new Error('libcimbar display unavailable');
+        idealRatio = Module._cimbare_get_aspect_ratio() || 1;
+        fitCanvas();
+        wasmReady = true;
+        render();
+      } catch (error) {
+        wasmFailed = true;
+        wasmReady = false;
+        handleRuntimeError(error);
+      }
     },
     print(text) { console.info('[libcimbar]', text); },
     printErr(text) { console.error('[libcimbar]', text); },

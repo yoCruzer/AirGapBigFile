@@ -14,6 +14,10 @@ ROOT = Path(__file__).resolve().parent.parent
 BUILD_SCRIPT = ROOT / "scripts" / "build-standalone.py"
 ARTIFACT = ROOT / "AirGapBigFile.standalone.html"
 EXPECTED_WASM_SHA256 = "8b6decf42cd6a79aa7ec1c9044f327959d1ee1fcf7b825f3c1d7e3c1b92b517e"
+VENDOR_SCRIPTS = {
+    "vendor/js-sha256-0.11.1/sha256.js": "2db6c8e554fbee14672368a0d7551a8ddd841ee96c91526eb7987a0179cfc717",
+    "vendor/cimbar-wasm-v0.6.4/cimbar_js.2026-01-20T0312.js": "5a94ff537547063c125542a4aead646f93fb44154fc1385c9a117a7d38dd7cd1",
+}
 
 
 def fail(message: str) -> int:
@@ -39,6 +43,26 @@ def main() -> int:
         return fail("artifact is stale or build is not deterministic")
 
     html = data.decode("utf-8")
+    for path, digest in VENDOR_SCRIPTS.items():
+        if hashlib.sha256((ROOT / path).read_bytes()).hexdigest() != digest:
+            return fail(f"vendored script differs from its pin: {path}")
+    scripts = re.findall(r"<script>(.*?)</script>", html, re.DOTALL)
+    hashes = {"'sha256-" + base64.b64encode(hashlib.sha256(s.encode()).digest()).decode() + "'" for s in scripts}
+    policy = re.search(r'<meta http-equiv="Content-Security-Policy" content="([^"]+)">', html)
+    if not policy:
+        return fail("standalone CSP is missing")
+    directives = {}
+    for directive in policy[1].split(";"):
+        name, *sources = directive.split()
+        if name in directives:
+            return fail(f"duplicate CSP directive: {name}")
+        directives[name] = set(sources)
+    if directives != {
+        "default-src": {"'none'"}, "base-uri": {"'none'"}, "form-action": {"'none'"},
+        "connect-src": {"'none'"}, "style-src": {"'unsafe-inline'"},
+        "script-src": hashes | {"'wasm-unsafe-eval'"},
+    }:
+        return fail("standalone CSP must restrict connections and pin every inline script")
     if re.search(r"<script\s+[^>]*src=", html, re.IGNORECASE):
         return fail("artifact contains an external script reference")
     if re.search(r"<link\s+[^>]*href=", html, re.IGNORECASE):
@@ -52,6 +76,7 @@ def main() -> int:
         "AIRGAP INLINE BEGIN: src/render-timing.js",
         "AIRGAP INLINE BEGIN: src/wake-lock.js",
         "AIRGAP INLINE BEGIN: src/app.js",
+        "AIRGAP INLINE BEGIN: src/encoder.js",
         "简体中文",
         "Actual FPS",
         "发送已自动暂停",
